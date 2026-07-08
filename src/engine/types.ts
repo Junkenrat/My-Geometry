@@ -1,13 +1,12 @@
 export interface Point {
-    // Identity: stable, generated (p0, p1, ...). Never shown to the user.
     readonly id: string;
-    // Name: assigned later by the presentation layer (naming.ts). May not exist yet.
+    // Name -> naming.ts; may not exist!
     label: string | null; // Changeable
     readonly x: number;
     readonly y: number;
 }
 
-// Display name for a point that may not have been named yet.
+// Display name for a point that may not have been named yet
 export function pointName(p: Point): string {
     return p.label ?? p.id;
 }

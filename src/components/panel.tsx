@@ -1,5 +1,4 @@
 import { formatFact, formatGoal, formatQuantity } from "../engine/format";
-import { isMeaningfulFact } from "../engine/facts";
 import { Problem } from "../engine/problem";
 import { AddStatement } from "./addStatement";
 import { SetGoal } from "./setGoal";
@@ -19,28 +18,6 @@ interface PanelProps {
 
 export function Panel({problem, onSolve, isSolved, conflicts, onAdd, onSetGoal}: PanelProps) {
     const [activeTab, setActiveTab] = useState<"problem" | "solution">("problem");
-
-    // Given: what the user stated. Found: what the engine derived.
-    // Both show only meaningful facts — triangle/between scaffolding stays internal.
-    const givenItems: string[] = [
-        ...problem.facts
-            .filter(f => f.reason.kind === "given" && isMeaningfulFact(f))
-            .map(f => formatFact(f))
-            .filter((s): s is string => s !== null),
-        ...problem.quantities.assignments
-            .filter(a => a.reason.kind === "given")
-            .map(a => formatQuantity(a.quantity)),
-    ];
-    const foundItems: string[] = [
-        ...problem.quantities.assignments
-            .filter(a => a.reason.kind === "derived")
-            .map(a => formatQuantity(a.quantity)),
-        ...problem.facts
-            .filter(f => f.reason.kind === "derived" && isMeaningfulFact(f))
-            .map(f => formatFact(f))
-            .filter((s): s is string => s !== null),
-    ];
-
     return (
         <div className="panel">
             
@@ -56,33 +33,27 @@ export function Panel({problem, onSolve, isSolved, conflicts, onAdd, onSetGoal}:
                     <div className="status">
                         Status: {isSolved ? "Solved" : "Not enough info"}
                     </div>
-                    <h3 className="section-title">Given</h3>
+                    <h3 className="section-title">Statements</h3>
                     <div className="statements-list">
-                        {givenItems.length === 0 && (
-                            <div className="statement statement-empty">no conditions yet</div>
-                        )}
-                        {givenItems.map((text, index) => (
-                            <div key={`given-${index}`} className="statement statement-given">
-                                {text}
-                            </div>
-                        ))}
+                        {problem.facts.map((fact, index) => {
+                            const text = formatFact(fact);
+                            if (text === null) return null;
+                            return (
+                                <div key={`fact-${index}`} className="statement">
+                                    {text}
+                                </div>
+                            );
+                        })}
+                        {problem.quantities.assignments
+                            .filter(a => a.reason.kind === "given")
+                            .map((a, index) => (
+                                <div key={`given-${index}`} className="statement">
+                                    {formatQuantity(a.quantity)}
+                                </div>
+                            ))}
                     </div>
-
+                    
                     <AddStatement problem={problem} onAdd={onAdd} />
-
-                    <h3 className="section-title">Found</h3>
-                    <div className="statements-list">
-                        {foundItems.length === 0 && (
-                            <div className="statement statement-empty">
-                                If we can find any new values we'll show them here
-                            </div>
-                        )}
-                        {foundItems.map((text, index) => (
-                            <div key={`found-${index}`} className="statement statement-found">
-                                {text}
-                            </div>
-                        ))}
-                    </div>
 
                     <h3 className="section-title">Goal</h3>
                     

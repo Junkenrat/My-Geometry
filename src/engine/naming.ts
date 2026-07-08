@@ -1,10 +1,7 @@
 import { Problem } from "./problem";
 import type { Point } from "./types";
 
-// Presentation pass: hand out letters to points that don't have a name yet.
-// Never renames — already-assigned labels are kept and skipped over.
-// Determinism comes from geometric order (left-to-right, then top-to-bottom),
-// not from creation history.
+// Hands out letters to points that don't have a name yet. Using geometric order determinism
 export function assignLabels(problem: Problem): void {
     const used = usedLabels(problem);
     const unnamed = Array.from(problem.points.values())
@@ -18,14 +15,13 @@ export function assignLabels(problem: Problem): void {
 }
 
 // Targeted fallback: name a single point (and only it), e.g. when the user
-// skips its naming dialog while other points are still waiting for theirs.
+// skips its naming dialog while other points are still waiting for theirs
 export function ensureLabel(problem: Problem, point: Point): void {
     if (point.label !== null) return;
     point.label = firstFreeLabel(usedLabels(problem));
 }
 
-// Suggested name for the next line: first free lowercase letter
-// (lines are never auto-named — this only feeds the dialog placeholder).
+// Suggested name for the next line; first free lowercase letter
 export function nextFreeLineLabel(problem: Problem): string {
     const used = new Set<string>();
     for (const line of problem.lines.values()) {
@@ -37,9 +33,7 @@ export function nextFreeLineLabel(problem: Problem): string {
     }
 }
 
-// The letter the next unnamed point would receive from assignLabels.
-// Pure preview — assigns nothing. (If several points are unnamed at once,
-// this is the letter for the first of them in geometric order.)
+// The letter the next unnamed point would receive from assignLabels. Used for the preview
 export function nextFreeLabel(problem: Problem): string {
     return firstFreeLabel(usedLabels(problem));
 }

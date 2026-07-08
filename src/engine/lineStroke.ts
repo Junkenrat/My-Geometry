@@ -11,8 +11,6 @@ export interface LineStroke {
     labelX: number; labelY: number;
 }
 
-// Endpoints for drawing an infinite line as a sketch stroke: cover every
-// problem point lying on the line, plus a fixed overhang on both sides.
 export function lineDrawStroke(problem: Problem, line: Line, overhang: number = LINE_OVERHANG): LineStroke | null {
     const { p1, p2 } = line;
     const dx = p2.x - p1.x;

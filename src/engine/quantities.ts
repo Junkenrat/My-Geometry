@@ -1,11 +1,9 @@
 import type { Fact } from "./facts";
 
-// A quantity is a "slot for a number": the length of a specific segment
-// or the degree measure of a specific angle.
+// Number value of an object
 export type QuantityId = string;
 
-// A premise is either a structural fact ("E is between A and B")
-// or a known quantity ("AE = 3") that a derivation used.
+// Fact used for solution
 export type Premise =
     | { kind: "fact"; fact: Fact }
     | { kind: "quantity"; id: QuantityId };
@@ -16,8 +14,6 @@ export type QReason =
 
 export interface Quantity {
     readonly id: QuantityId;
-    // Display name is computed on demand: points may get their labels
-    // after the quantity is created (naming is a separate pass).
     readonly labelOf: () => string;
     value: number | null;
     reason: QReason | null;
@@ -60,8 +56,7 @@ export class QuantityStore {
         return this.byId.get(id)?.labelOf() ?? id;
     }
 
-    // Returns true if a new value was recorded. Assigning a different value
-    // to an already-known quantity records a conflict instead of overwriting.
+    // Returns true if a new value was recorded
     assign(id: QuantityId, value: number, reason: QReason): boolean {
         const quantity = this.byId.get(id);
         if (quantity === undefined) {
@@ -85,4 +80,5 @@ export class QuantityStore {
         if (this.conflicts.some(c => c.message === message)) return;
         this.conflicts.push({ message });
     }
+    
 }

@@ -4,7 +4,7 @@ import { segmentIntersection } from "./geometry";
 
 const EPS = 0.000001;
 
-// right_triangle at C with legs a, b and hypotenuse c  =>  a² + b² = c², ∠C = 90°
+// right_triangle at C with legs a, b and hypotenuse c
 export function pythagoras(problem: Problem): void {
     for (const fact of problem.facts) {
         if (fact.kind !== "right_triangle") continue;
@@ -42,8 +42,6 @@ export function intersections(problem: Problem): void {
             if (!segA || !segB) continue;
             const ip = segmentIntersection(segA, segB);
             if (ip === null) continue;
-            // A materialized point exists without a name; naming is a
-            // separate presentation pass (naming.ts).
             const point = problem.getPointAt(ip.x, ip.y) ?? problem.addPoint(ip.x, ip.y);
             problem.addFact({ kind: "between", point, from: segA.p1, to: segA.p2,
                 reason: { kind: "derived", theorem: "intersection", premises: [] } });

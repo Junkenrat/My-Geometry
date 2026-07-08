@@ -4,8 +4,7 @@ export type Reason =
   | { kind: "given" }
   | { kind: "derived"; theorem: string; premises: Fact[] };
 
-// Structural facts about the configuration. Numeric values (lengths, angle
-// measures) live in QuantityStore, and numeric laws live in relations.
+// Structural facts about the configuration
 export interface TriangleFact {
     readonly kind: "triangle";
     readonly triangle: Triangle;
@@ -41,12 +40,7 @@ export type Goal =
     | { kind: "angle"; angle: Angle }
     | { kind: "perpendicular"; seg1: Segment; seg2: Segment };
 
-// Whether a fact carries information the user cares about, or is pure
-// engine bookkeeping. A property of the fact KIND, not of an instance —
-// that's why it's a function here and not a stored flag: nothing to
-// forget to set, and the classification lives in one place.
-// - perpendicular / right_triangle: real geometric statements;
-// - triangle / between: scaffolding the engine builds for itself.
+// Whether a fact carries information the user cares about or it's used only by the engine
 export function isMeaningfulFact(fact: Fact): boolean {
     return fact.kind === "perpendicular" || fact.kind === "right_triangle";
 }

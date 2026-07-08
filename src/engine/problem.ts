@@ -10,8 +10,6 @@ import { relationKey } from "./relations";
 const EPS = 0.000001;
 
 export class Problem {
-    // Keyed by point id. Every other map's key is built from point ids too:
-    // ids are identity, labels are presentation and may not exist yet.
     points: Map<string, Point> = new Map();
     lines: Map<string, Line> = new Map();
     segments: Map<string, Segment> = new Map();
@@ -59,8 +57,7 @@ export class Problem {
         return this.triangles.get(key);
     }
 
-    // Creates a new point every time: identity is generated, the name
-    // comes later from the presentation layer (naming.ts).
+    // Creates a new point every time
     addPoint(x: number, y: number): Point {
         const id = `p${this.nextPointNumber}`;
         this.nextPointNumber += 1;
@@ -69,9 +66,6 @@ export class Problem {
         return newPoint;
     }
 
-    // Removes a point that nothing references yet (e.g. a pending segment
-    // endpoint the user cancelled). Removing a referenced point would corrupt
-    // the model, so that is a programmer error.
     removePoint(id: string): void {
         const point = this.requirePoint(id);
         const isReferenced =
@@ -269,7 +263,6 @@ export class Problem {
 
     // --- quantities & relations -------------------------------------------
 
-    // Pure id computation (no side effects) — safe to call during render.
     lengthId(seg: Segment): QuantityId {
         return `len:${[seg.p1.id, seg.p2.id].sort().join("-")}`;
     }

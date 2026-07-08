@@ -1,6 +1,5 @@
 import type { Premise, QuantityId, QReason, QuantityStore } from "./quantities";
 
-// Why this relation exists at all (e.g. "vertical_angles" from two between-facts).
 export interface RelationReason {
     readonly theorem: string;
     readonly premises: Premise[];
@@ -22,8 +21,7 @@ export function relationKey(rel: Relation): string {
 
 const EPS = 0.000001;
 
-// Run all relations to a fixpoint: whenever a relation has exactly one
-// unknown slot, compute it; when it has none, check for contradictions.
+
 export function propagate(store: QuantityStore, relations: Iterable<Relation>): void {
     const all = Array.from(relations);
     let changed = true;
