@@ -1,6 +1,6 @@
 import type { Point, Line, Ray, Segment, Angle, Triangle } from "./types";
 import { pointName } from "./types";
-import type { Fact, Goal } from "./facts";
+import type { Fact, GivenValue, Goal } from "./facts";
 import { factsEqual } from "./facts";
 import type { Quantity, QuantityId } from "./quantities";
 import { QuantityStore } from "./quantities";
@@ -19,11 +19,12 @@ export class Problem {
     facts: Fact[] = [];
     goal: Goal | null = null;
     quantities: QuantityStore = new QuantityStore();
+    givenValues: GivenValue[] = []
     relations: Map<string, Relation> = new Map();
     private nextPointNumber = 0;
     private nextLineNumber = 0;
 
-    // All string arguments of getX/addX below are point ids (p0, p1, ...).
+    // All string arguments of get/add below are point ids
 
     getAngleKey(vertex: string, thr1: string, thr2: string): string {
         const keyA = `${vertex}>${thr1}`;
@@ -281,12 +282,24 @@ export class Problem {
             () => `∠${pointName(angle.ray1.through)}${pointName(angle.vertex)}${pointName(angle.ray2.through)}`);
     }
 
+    private applyGivenValue(given: GivenValue): void {
+        if (given.kind === "length") {
+            this.quantities.assign(this.lengthQuantity(given.segment).id, given.value, { kind: "given" });
+        } else {
+            this.quantities.assign(this.angleQuantity(given.angle).id, given.value, { kind: "given" });
+        }
+    }
+
     setLength(seg: Segment, value: number): void {
-        this.quantities.assign(this.lengthQuantity(seg).id, value, { kind: "given" });
+        const given: GivenValue = { kind: "length", segment: seg, value };
+        this.givenValues.push(given);
+        this.applyGivenValue(given);
     }
 
     setAngle(angle: Angle, value: number): void {
-        this.quantities.assign(this.angleQuantity(angle).id, value, { kind: "given" });
+        const given: GivenValue = { kind: "angle", angle, value };
+        this.givenValues.push(given);
+        this.applyGivenValue(given);
     }
 
     setGoal(goal: Goal | null): void {

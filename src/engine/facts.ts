@@ -4,6 +4,10 @@ export type Reason =
   | { kind: "given" }
   | { kind: "derived"; theorem: string; premises: Fact[] };
 
+export type GivenValue =
+  | { kind: "length"; segment: Segment; value: number }
+  | { kind: "angle"; angle: Angle; value: number };
+
 // Structural facts about the configuration
 export interface TriangleFact {
     readonly kind: "triangle";
@@ -40,7 +44,7 @@ export type Goal =
     | { kind: "angle"; angle: Angle }
     | { kind: "perpendicular"; seg1: Segment; seg2: Segment };
 
-// Whether a fact carries information the user cares about or it's used only by the engine
+// Whether a fact carries information the user cares about or it's only used by the engine
 export function isMeaningfulFact(fact: Fact): boolean {
     return fact.kind === "perpendicular" || fact.kind === "right_triangle";
 }
