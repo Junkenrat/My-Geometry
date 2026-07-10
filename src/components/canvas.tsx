@@ -8,7 +8,7 @@ interface CanvasProps {
     onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => void;
     onMouseLeave: () => void;
     firstPoint: Point | null;
-    curSnapped: { x: number; y: number } | null;
+    curSnapped: { x: number; y: number; kind: "grid" | "existingPoint" } | null;
     Tool: "point" | "segment" | "ray" | "cursor" | "line";
 }
 
@@ -102,9 +102,9 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, firstPoint
                 <circle
                     cx={curSnapped.x}
                     cy={curSnapped.y}
-                    r={4}
-                    fill="gray"
-                    opacity={0.4}
+                    r={curSnapped.kind === "grid" ? 4 : 6}
+                    fill={curSnapped.kind === "grid" ? "gray" : "#1F8A70"}
+                    opacity={curSnapped.kind === "grid" ? "0.4" : "1"}
                 />
             )}
             {curSnapped !== null && firstPoint !== null && Tool === "segment" && (

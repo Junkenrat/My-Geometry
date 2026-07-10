@@ -12,10 +12,6 @@ import { validate } from "./engine/validate";
 
 const GRID = 30;
 
-// One naming dialog waiting its turn. The queue holds only objects that
-// still need a name; the role ("first"/"second"/"the line") is decided
-// when the queue is built. "placeholder" is lazy: what the object would
-// be called on skip can change while earlier dialogs hand out names.
 interface NamingTask {
   key: string;
   title: string;
@@ -35,8 +31,7 @@ type Interaction =
   | { mode: "segment_end"; first: Point; created: boolean }
   // naming: point tool; naming_queue: endpoints created on empty space,
   // asked one after another once the figure is placed. "returnTo" is where
-  // the machine goes after the last dialog — extend the union with
-  // "line_start" when the line flow lands.
+  // the engine goes after the last dialog
   | { mode: "naming"; point: Point }
   | { mode: "naming_queue"; queue: NamingTask[]; returnTo: "segment_start" | "line_start" }
   | { mode: "line_start" }
@@ -63,10 +58,9 @@ function toolOf(interaction: Interaction): Tool {
   }
 }
 
-function findPointAt(x: number, y: number, problem: Problem): Point | null {
-  const HIT_RADIUS = 7;
+function findPointAt(x: number, y: number, hitRadius: number, problem: Problem): Point | null {
   for (const point of problem.points.values()) {
-    if (Math.hypot(x - point.x, y - point.y) < HIT_RADIUS)  {
+    if (Math.hypot(x - point.x, y - point.y) < hitRadius)  {
       return point;
     }
   }
@@ -86,7 +80,7 @@ function App() {
     }
   }, [problem]);
   const [, setVersion] = useState(0);
-  const [curSnapped, setSnapped] = useState<{x: number, y: number} | null>(null);
+  const [curSnapped, setSnapped] = useState<{x: number, y: number, kind: "grid" | "existingPoint"} | null>(null);
 
   const tool = toolOf(interaction);
 
@@ -118,10 +112,20 @@ function App() {
     const coords = svg.getBoundingClientRect();
     const x = e.clientX - coords.left;
     const y = e.clientY - coords.top;
-    setSnapped({
-      x: Math.round(x / GRID) * GRID,
-      y: Math.round(y / GRID) * GRID,
-    });
+    const nearPoint = findPointAt(x, y, 25, problem);
+    if (nearPoint !== null) {
+      setSnapped({
+        x: nearPoint.x,
+        y: nearPoint.y,
+        kind: "existingPoint"
+      });
+    } else {
+      setSnapped({
+        x: Math.round(x / GRID) * GRID,
+        y: Math.round(y / GRID) * GRID,
+        kind: "grid"
+      });
+    }
   }
 
   function handleMouseLeave() {
@@ -133,8 +137,17 @@ function App() {
     const coords = svg.getBoundingClientRect();
     const x = e.clientX - coords.left;
     const y = e.clientY - coords.top;
-    const snappedX = Math.round(x / GRID) * GRID;
-    const snappedY = Math.round(y / GRID) * GRID;
+    let snappedX: number;
+    let snappedY: number;
+    const nearPoint = findPointAt(x, y, 25, problem);
+    if (nearPoint !== null) {
+      snappedX = nearPoint.x;
+      snappedY = nearPoint.y;
+    } else {
+      snappedX = Math.round(x / GRID) * GRID;
+      snappedY = Math.round(y / GRID) * GRID;
+    }
+    
     switch (interaction.mode) {
       case "idle":
         return;
@@ -147,14 +160,14 @@ function App() {
         return;
       }
       case "segment_start": {
-        const existing = findPointAt(snappedX, snappedY, problem);
+        const existing = findPointAt(snappedX, snappedY, 7, problem);
         const first = existing ?? problem.addPoint(snappedX, snappedY);
         setInteraction({ mode: "segment_end", first, created: existing === null });
         setVersion(v => v + 1);
         return;
       }
       case "segment_end": {
-        const existing = findPointAt(snappedX, snappedY, problem);
+        const existing = findPointAt(snappedX, snappedY, 7, problem);
         if (existing === interaction.first) return;
         const second = existing ?? problem.addPoint(snappedX, snappedY);
         problem.addSegment(interaction.first.id, second.id);
@@ -171,23 +184,20 @@ function App() {
         return;
       }
       case "line_start": {
-        const existing = findPointAt(snappedX, snappedY, problem);
+        const existing = findPointAt(snappedX, snappedY, 7, problem);
         const first = existing ?? problem.addPoint(snappedX, snappedY);
         setInteraction({ mode: "line_end", first, created: existing === null });
         setVersion(v => v + 1);
         return;
       }
       case "line_end": {
-        const existing = findPointAt(snappedX, snappedY, problem);
+        const existing = findPointAt(snappedX, snappedY, 7, problem);
         if (existing === interaction.first) return;
         const second = existing ?? problem.addPoint(snappedX, snappedY);
         const line = problem.addExplicitLine(interaction.first.id, second.id);
         const queue: NamingTask[] = [];
         if (interaction.first.label === null) queue.push(pointNamingTask(interaction.first, "Name the first point"));
         if (second.label === null) queue.push(pointNamingTask(second, "Name the second point"));
-        // The line itself is asked last. Skip is a real option here: an
-        // unnamed line is displayed through its points ("AB"). The
-        // placeholder suggests the next free lowercase letter.
         if (line.label === null) {
           queue.push({
             key: line.id,
@@ -212,9 +222,7 @@ function App() {
     }
   }
 
-  // Called on both confirm and skip. The fallback letter goes only to the
-  // point whose dialog was closed — points still waiting in the queue must
-  // stay unnamed until their own dialog.
+  // Called on both confirm and skip
   function handleNamingClose() {
     switch (interaction.mode) {
       case "naming":

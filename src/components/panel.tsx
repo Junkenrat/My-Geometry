@@ -59,7 +59,7 @@ export function Panel({problem, onSolve, conflicts, onAdd, onSetGoal}: PanelProp
                     <h3 className="section-title">Given</h3>
                     <div className="statements-list">
                         {givenItems.length === 0 && (
-                            <div className="statement statement-empty">no conditions yet</div>
+                            <div className="statement-empty">No conditions yet</div>
                         )}
                         {givenItems.map((text, index) => (
                             <div key={`given-${index}`} className="statement statement-given">
@@ -73,7 +73,7 @@ export function Panel({problem, onSolve, conflicts, onAdd, onSetGoal}: PanelProp
                     <h3 className="section-title">Found</h3>
                     <div className="statements-list">
                         {foundItems.length === 0 && (
-                            <div className="statement statement-empty">
+                            <div className="statement-empty">
                                 If we can find any new values we'll show them here
                             </div>
                         )}
