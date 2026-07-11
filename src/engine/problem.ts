@@ -302,6 +302,31 @@ export class Problem {
         this.applyGivenValue(given);
     }
 
+    // Forget everything the solver derived; keep the construction and the
+    // givens. Derived GEOMETRY (materialized intersection points, sub-segments,
+    // angles) deliberately survives: with unchanged coordinates the next solve
+    // re-derives the same facts on it. NOT sufficient for moving points.
+    resetDerived(): void {
+        this.facts = this.facts.filter(f => f.reason.kind === "given");
+        this.relations.clear();
+        this.quantities = new QuantityStore();
+        for (const given of this.givenValues) {
+            this.applyGivenValue(given);
+        }
+    }
+
+    // Removing a condition = drop it from the givens and forget everything
+    // derived; re-solving is the caller's job.
+    removeGivenValue(index: number): void {
+        this.givenValues.splice(index, 1);
+        this.resetDerived();
+    }
+
+    removeGivenFact(fact: Fact): void {
+        this.facts = this.facts.filter(f => f !== fact);
+        this.resetDerived();
+    }
+
     setGoal(goal: Goal | null): void {
         this.goal = goal;
     }

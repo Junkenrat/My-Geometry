@@ -425,3 +425,25 @@ html, body, #root {
 .statement-found::before {
   background: var(--green);
 }
+
+/* given rows carry a remove button on the right */
+.statement-given {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.statement-remove {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+
+.statement-remove:hover {
+  color: var(--text);
+}

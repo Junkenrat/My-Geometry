@@ -1,4 +1,4 @@
-import { formatFact, formatGoal, formatQuantity } from "../engine/format";
+import { formatFact, formatGivenValue, formatGoal, formatQuantity } from "../engine/format";
 import { isMeaningfulFact } from "../engine/facts";
 import { Problem } from "../engine/problem";
 import { AddStatement } from "./addStatement";
@@ -20,17 +20,31 @@ interface PanelProps {
 export function Panel({problem, onSolve, conflicts, onAdd, onSetGoal}: PanelProps) {
     const [activeTab, setActiveTab] = useState<"problem" | "solution">("problem");
 
-    // Given: what the user stated. Found: what the engine derived.
+    // Given: what the user stated — rendered from the conditions themselves
+    // (givenValues + given facts), so each row knows how to remove itself,
+    // and a condition rejected as conflicting is still visible.
+    // Found: what the engine derived.
     // Both show only meaningful facts — triangle/between scaffolding stays internal.
-    const givenItems: string[] = [
-        ...problem.facts
-            .filter(f => f.reason.kind === "given" && isMeaningfulFact(f))
-            .map(f => formatFact(f))
-            .filter((s): s is string => s !== null),
-        ...problem.quantities.assignments
-            .filter(a => a.reason.kind === "given")
-            .map(a => formatQuantity(a.quantity)),
-    ];
+    const givenItems: { text: string; remove: () => void }[] = [];
+    for (const fact of problem.facts) {
+        if (fact.reason.kind !== "given" || !isMeaningfulFact(fact)) continue;
+        const text = formatFact(fact);
+        if (text === null) continue;
+        givenItems.push({ text, remove: () => problem.removeGivenFact(fact) });
+    }
+    problem.givenValues.forEach((given, index) => {
+        givenItems.push({
+            text: formatGivenValue(given),
+            remove: () => problem.removeGivenValue(index),
+        });
+    });
+
+    // Removal drops the condition and forgets everything derived;
+    // re-solve immediately so Found reflects the remaining conditions.
+    function handleRemove(item: { remove: () => void }) {
+        item.remove();
+        onSolve();
+    }
     const foundItems: string[] = [
         ...problem.quantities.assignments
             .filter(a => a.reason.kind === "derived")
@@ -61,9 +75,16 @@ export function Panel({problem, onSolve, conflicts, onAdd, onSetGoal}: PanelProp
                         {givenItems.length === 0 && (
                             <div className="statement-empty">No conditions yet</div>
                         )}
-                        {givenItems.map((text, index) => (
+                        {givenItems.map((item, index) => (
                             <div key={`given-${index}`} className="statement statement-given">
-                                {text}
+                                <span>{item.text}</span>
+                                <button
+                                    className="statement-remove"
+                                    aria-label="Remove condition"
+                                    onClick={() => handleRemove(item)}
+                                >
+                                    ×
+                                </button>
                             </div>
                         ))}
                     </div>

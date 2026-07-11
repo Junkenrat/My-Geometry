@@ -55,6 +55,9 @@ export function NameDialog({ title, placeholder, onSubmit, onClose, onAuto}: Nam
             <div className="hint-actions">
                 <button className="hint-btn-done" onClick={handleConfirm}>Done</button>
                 <button className="hint-btn-cancel" onClick={() => {onAuto(); onClose();}}>Auto</button>
+                <button className="hint-btn-cancel" style={{ marginLeft: "auto"}}>Cancel</button> 
+                {/*A task for the future is to implement the eraser tool. 
+                The undo button here deletes the shape that has just been drawn*/}
                 {/* <button className="hint-btn-cancel" style={{ marginLeft: "auto" }} onClick={onClose}>Skip</button> */}
             </div>
         </div>

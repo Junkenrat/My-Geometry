@@ -1,4 +1,4 @@
-import type { Fact, Goal } from "./facts";
+import type { Fact, GivenValue, Goal } from "./facts";
 import type { Premise, Quantity } from "./quantities";
 import type { Problem } from "./problem";
 import type { Segment, Angle, Triangle, Line } from "./types";
@@ -57,6 +57,16 @@ export function formatQuantity(quantity: Quantity): string {
     const unit = quantity.id.startsWith("ang:") ? "°" : "";
     if (quantity.value === null) return `${quantity.labelOf()} = ?`;
     return `${quantity.labelOf()} = ${formatNumber(quantity.value)}${unit}`;
+}
+
+// Formats the condition as the user stated it — straight from GivenValue,
+// not from the store: a given rejected as conflicting has no assignment,
+// but it is still a condition and must show up in the panel.
+export function formatGivenValue(given: GivenValue): string {
+    if (given.kind === "length") {
+        return `${formatSegmentName(given.segment)} = ${formatNumber(given.value)}`;
+    }
+    return `${formatAngleName(given.angle)} = ${formatNumber(given.value)}°`;
 }
 
 export function formatPremise(problem: Problem, premise: Premise): string | null {
