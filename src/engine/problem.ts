@@ -238,7 +238,6 @@ export class Problem {
             p3: this.requirePoint(p3)
         }
         this.triangles.set(key, newTriangle);
-        this.addFact({ kind: "triangle", triangle: newTriangle, reason: { kind: "given" } });
         return newTriangle;
     }
 

@@ -44,8 +44,6 @@ export function formatFact(fact: Fact): string | null {
         return `${formatSegmentName(fact.seg1)} ⟂ ${formatSegmentName(fact.seg2)}`;
     } else if (fact.kind === "right_triangle") {
         return `${formatTriangleName(fact.triangle)} is right-angled at ${pointName(fact.rightAngleAt)}`;
-    } else if (fact.kind === "triangle") {
-        return formatTriangleName(fact.triangle);
     } else if (fact.kind === "between") {
         return `${pointName(fact.point)} is between ${pointName(fact.from)} and ${pointName(fact.to)}`;
     } else {

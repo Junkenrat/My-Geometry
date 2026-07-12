@@ -69,8 +69,7 @@ function findPointAt(x: number, y: number, hitRadius: number, problem: Problem):
 
 function findLineAt(x: number, y:number, hitRadius: number, problem: Problem): {x: number, y: number, kind: "line"} | null {
   let result: {x: number, y: number, kind: "line"} | null = null;
-  let minDist = hitRadius; 
-  result = null;
+  let minDist = hitRadius;
   for (const line of problem.segments.values()) {
     const dx = line.p2.x - line.p1.x, dy = line.p2.y - line.p1.y;
     const len2 = dx * dx + dy * dy;
@@ -99,7 +98,7 @@ function findLineAt(x: number, y:number, hitRadius: number, problem: Problem): {
       result = {x: qx, y: qy, kind: "line"};
     }
   }
-  return null;
+  return result;
 }
 
 function snapPosition(x: number, y: number, problem: Problem): {x: number, y: number, kind: "existingPoint" | "grid" | "line"} {

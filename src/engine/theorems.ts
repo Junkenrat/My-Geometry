@@ -119,10 +119,9 @@ export function linearPairs(problem: Problem): void {
 }
 
 // triangle ABC  =>  ∠A + ∠B + ∠C = 180
+// The triangle's existence lives in problem.triangles, not in a fact.
 export function triangleAngleSum(problem: Problem): void {
-    for (const fact of problem.facts) {
-        if (fact.kind !== "triangle") continue;
-        const { p1, p2, p3 } = fact.triangle;
+    for (const { p1, p2, p3 } of problem.triangles.values()) {
         const angleA = problem.getAngle(p1.id, p2.id, p3.id);
         const angleB = problem.getAngle(p2.id, p1.id, p3.id);
         const angleC = problem.getAngle(p3.id, p1.id, p2.id);
@@ -135,7 +134,7 @@ export function triangleAngleSum(problem: Problem): void {
                 problem.angleQuantity(angleC).id,
             ],
             total: 180,
-            reason: { theorem: "triangle_angle_sum", premises: [{ kind: "fact", fact }] },
+            reason: { theorem: "triangle_angle_sum", premises: [] },
         });
     }
 }

@@ -8,13 +8,10 @@ export type GivenValue =
   | { kind: "length"; segment: Segment; value: number }
   | { kind: "angle"; angle: Angle; value: number };
 
-// Structural facts about the configuration
-export interface TriangleFact {
-    readonly kind: "triangle";
-    readonly triangle: Triangle;
-    readonly reason: Reason;
-}
-
+// Structural facts about the configuration. The mere existence of a triangle
+// is NOT a fact — it lives in problem.triangles; theorems read that Map
+// directly. Facts carry information beyond existence (which angle is right,
+// which segments are perpendicular, ...).
 export interface RightTriangleFact {
     readonly kind: "right_triangle";
     readonly triangle: Triangle;
@@ -37,7 +34,7 @@ export interface BetweenFact {
     readonly reason: Reason;
 }
 
-export type Fact = TriangleFact | RightTriangleFact | PerpendicularFact | BetweenFact;
+export type Fact = RightTriangleFact | PerpendicularFact | BetweenFact;
 
 export type Goal =
     | { kind: "length"; segment: Segment }
@@ -61,11 +58,6 @@ export function factsEqual(a: Fact, b: Fact): boolean {
     }
     if (a.kind === "right_triangle" && b.kind === "right_triangle") {
         if (a.rightAngleAt === b.rightAngleAt && a.triangle === b.triangle) {
-            return true;
-        }
-    }
-    if (a.kind === "triangle" && b.kind === "triangle") {
-        if (a.triangle === b.triangle) {
             return true;
         }
     }
