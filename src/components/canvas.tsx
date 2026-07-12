@@ -8,9 +8,37 @@ interface CanvasProps {
     onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => void;
     onMouseLeave: () => void;
     firstPoint: Point | null;
-    curSnapped: { x: number; y: number; kind: "grid" | "existingPoint" } | null;
+    curSnapped: { x: number; y: number; kind: "grid" | "existingPoint" | "line" } | null;
     Tool: "point" | "segment" | "ray" | "cursor" | "line";
 }
+
+const getExtendedCoordinates = (
+    x1: number, 
+    y1: number, 
+    x2: number, 
+    y2: number, 
+    extendLength: number = 10000
+) => {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const len = Math.hypot(dx, dy);
+
+    if (len === 0) {
+        return { x1, y1, x2, y2 };
+    }
+
+    const dirX = dx / len;
+    const dirY = dy / len;
+
+    return {
+        // Subtract to extend backward past the first point
+        x1: x1 - dirX * extendLength,
+        y1: y1 - dirY * extendLength,
+        // Add to extend forward past the second point
+        x2: x2 + dirX * extendLength,
+        y2: y2 + dirY * extendLength
+    };
+};
 
 export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, firstPoint, curSnapped, Tool }: CanvasProps) {
     return (
@@ -37,6 +65,7 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, firstPoint
                 .map((line) => {
                     const stroke = lineDrawStroke(problem, line);
                     if (stroke === null) return null;
+                    const extended = getExtendedCoordinates(stroke.x1, stroke.y1, stroke.x2, stroke.y2);
                     return (
                         <g key={line.id}>
                             <line
@@ -47,6 +76,17 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, firstPoint
                                 stroke="#6B5C39"
                                 strokeWidth={1.5}
                             />
+                            {(Tool === "point" || Tool === "segment" || Tool === "line") && (
+                                <line
+                                    x1={extended.x1}
+                                    y1={extended.y1}
+                                    x2={extended.x2}
+                                    y2={extended.y2}
+                                    stroke="#6B5C39"
+                                    strokeWidth={1.5}
+                                    opacity={0.25}
+                                />
+                            )}
                             {line.label !== null && (
                                 <text
                                     x={stroke.labelX}
@@ -102,9 +142,9 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, firstPoint
                 <circle
                     cx={curSnapped.x}
                     cy={curSnapped.y}
-                    r={curSnapped.kind === "grid" ? 4 : 6}
-                    fill={curSnapped.kind === "grid" ? "gray" : "#1F8A70"}
-                    opacity={curSnapped.kind === "grid" ? "0.4" : "1"}
+                    r={curSnapped.kind === "existingPoint" ? 6 : 4}
+                    fill={curSnapped.kind === "existingPoint" ? "#1F8A70" : "gray"}
+                    opacity={curSnapped.kind === "existingPoint" ? "1" : "0.4"}
                 />
             )}
             {curSnapped !== null && firstPoint !== null && Tool === "segment" && (

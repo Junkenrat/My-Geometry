@@ -67,6 +67,52 @@ function findPointAt(x: number, y: number, hitRadius: number, problem: Problem):
   return null;
 }
 
+function findLineAt(x: number, y:number, hitRadius: number, problem: Problem): {x: number, y: number, kind: "line"} | null {
+  let result: {x: number, y: number, kind: "line"} | null = null;
+  let minDist = hitRadius; 
+  result = null;
+  for (const line of problem.segments.values()) {
+    const dx = line.p2.x - line.p1.x, dy = line.p2.y - line.p1.y;
+    const len2 = dx * dx + dy * dy;
+    if (len2 === 0) continue;
+    let t =((x - line.p1.x) * dx + (y - line.p1.y) * dy) / len2;
+    t = Math.max(0, Math.min(1, t))
+    const qx = line.p1.x + t * dx;
+    const qy = line.p1.y + t * dy;
+    const dist = Math.hypot(x - qx, y - qy);
+    if (dist < hitRadius && dist < minDist) {
+      minDist = dist;
+      result = {x: qx, y: qy, kind: "line"};
+    }
+  }
+  for (const line of problem.lines.values()) {
+    if (line.kind !== "drawn") continue;
+    const dx = line.p2.x - line.p1.x, dy = line.p2.y - line.p1.y;
+    const len2 = dx * dx + dy * dy;
+    if (len2 === 0) continue;
+    const t =((x - line.p1.x) * dx + (y - line.p1.y) * dy) / len2;
+    const qx = line.p1.x + t * dx;
+    const qy = line.p1.y + t * dy;
+    const dist = Math.hypot(x - qx, y - qy);
+    if (dist < hitRadius && dist < minDist) {
+      minDist = dist;
+      result = {x: qx, y: qy, kind: "line"};
+    }
+  }
+  return null;
+}
+
+function snapPosition(x: number, y: number, problem: Problem): {x: number, y: number, kind: "existingPoint" | "grid" | "line"} {
+  // 1st priority: near point
+  const existingPoint = findPointAt(x, y, 15, problem); 
+  if (existingPoint !== null) return { x: existingPoint.x, y: existingPoint.y, kind: "existingPoint"}
+  // 2nd priority: near segment or line
+  const pointOnTheNearestLine = findLineAt(x, y, 12, problem); 
+  if (pointOnTheNearestLine !== null) return pointOnTheNearestLine;
+  // last priority: grid
+  return { x: Math.round(x / GRID) * GRID, y: Math.round(y / GRID) * GRID, kind: "grid" } 
+}
+
 function App() {
   const [problem] = useState(() => new Problem());
   const [interaction, setInteraction] = useState<Interaction>({ mode: "idle" });
@@ -80,7 +126,7 @@ function App() {
     }
   }, [problem]);
   const [, setVersion] = useState(0);
-  const [curSnapped, setSnapped] = useState<{x: number, y: number, kind: "grid" | "existingPoint"} | null>(null);
+  const [curSnapped, setSnapped] = useState<{x: number, y: number, kind: "grid" | "existingPoint" | "line"} | null>(null);
 
   const tool = toolOf(interaction);
 
@@ -112,20 +158,7 @@ function App() {
     const coords = svg.getBoundingClientRect();
     const x = e.clientX - coords.left;
     const y = e.clientY - coords.top;
-    const nearPoint = findPointAt(x, y, 25, problem);
-    if (nearPoint !== null) {
-      setSnapped({
-        x: nearPoint.x,
-        y: nearPoint.y,
-        kind: "existingPoint"
-      });
-    } else {
-      setSnapped({
-        x: Math.round(x / GRID) * GRID,
-        y: Math.round(y / GRID) * GRID,
-        kind: "grid"
-      });
-    }
+    setSnapped(snapPosition(x, y, problem));
   }
 
   function handleMouseLeave() {
@@ -137,16 +170,9 @@ function App() {
     const coords = svg.getBoundingClientRect();
     const x = e.clientX - coords.left;
     const y = e.clientY - coords.top;
-    let snappedX: number;
-    let snappedY: number;
-    const nearPoint = findPointAt(x, y, 25, problem);
-    if (nearPoint !== null) {
-      snappedX = nearPoint.x;
-      snappedY = nearPoint.y;
-    } else {
-      snappedX = Math.round(x / GRID) * GRID;
-      snappedY = Math.round(y / GRID) * GRID;
-    }
+    const snappedCoords = snapPosition(x, y, problem);
+    const snappedX = snappedCoords.x;
+    const snappedY = snappedCoords.y;
     
     switch (interaction.mode) {
       case "idle":

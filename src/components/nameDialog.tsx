@@ -20,7 +20,7 @@ export function NameDialog({ title, placeholder, onSubmit, onClose, onAuto}: Nam
 
     function handleConfirm() {
         if (value.trim() === "") {
-            setError(`Please enter a name or choose "Auto" or "Skip"`);
+            setError(`Please enter a name or choose "Auto"`);
             return;
         }
         const err = onSubmit(value.trim());
