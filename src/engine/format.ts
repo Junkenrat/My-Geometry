@@ -3,6 +3,7 @@ import type { Premise, Quantity } from "./quantities";
 import type { Problem } from "./problem";
 import type { Segment, Angle, Triangle, Line } from "./types";
 import { pointName } from "./types";
+import type { Condition } from "./conditions";
 
 export const THEOREM_NAMES: Record<string, string> = {
     pythagoras: "Pythagorean theorem",
@@ -13,6 +14,7 @@ export const THEOREM_NAMES: Record<string, string> = {
     linear_pair: "Linear pair",
     triangle_angle_sum: "Sum of angles in a triangle",
     right_angle: "Right angle",
+    given: "By the given condition"
 };
 
 export function getTheoremName(id: string): string {
@@ -57,9 +59,6 @@ export function formatQuantity(quantity: Quantity): string {
     return `${quantity.labelOf()} = ${formatNumber(quantity.value)}${unit}`;
 }
 
-// Formats the condition as the user stated it — straight from GivenValue,
-// not from the store: a given rejected as conflicting has no assignment,
-// but it is still a condition and must show up in the panel.
 export function formatGivenValue(given: GivenValue): string {
     if (given.kind === "length") {
         return `${formatSegmentName(given.segment)} = ${formatNumber(given.value)}`;
@@ -81,4 +80,15 @@ export function formatGoal(goal: Goal): string {
         return `Find ${formatAngleName(goal.angle)}`;
     }
     return `Prove ${formatSegmentName(goal.seg1)} ⟂ ${formatSegmentName(goal.seg2)}`;
+}
+
+export function formatConditions(condition: Condition): string | null{
+    if (condition.kind === "fact") {
+        return formatFact(condition.fact);
+    } else if (condition.kind === "equation") {
+        return `${formatSegmentName(condition.equation.a)} = ${formatSegmentName(condition.equation.b)}`;
+    } else if (condition.kind === "value") {
+        return (formatGivenValue(condition.target))
+    }
+    return null;
 }

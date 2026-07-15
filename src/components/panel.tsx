@@ -1,4 +1,4 @@
-import { formatFact, formatGivenValue, formatGoal, formatQuantity } from "../engine/format";
+import { formatConditions, formatFact, formatGoal, formatQuantity } from "../engine/format";
 import { isMeaningfulFact } from "../engine/facts";
 import { Problem } from "../engine/problem";
 import { AddStatement } from "./addStatement";
@@ -19,25 +19,10 @@ interface PanelProps {
 // isSolved is not destructured while the status line is commented out.
 export function Panel({problem, onSolve, conflicts, onAdd, onSetGoal}: PanelProps) {
     const [activeTab, setActiveTab] = useState<"problem" | "solution">("problem");
-
-    // Given: what the user stated — rendered from the conditions themselves
-    // (givenValues + given facts), so each row knows how to remove itself,
-    // and a condition rejected as conflicting is still visible.
-    // Found: what the engine derived.
-    // Both show only meaningful facts — triangle/between scaffolding stays internal.
-    const givenItems: { text: string; remove: () => void }[] = [];
-    for (const fact of problem.facts) {
-        if (fact.reason.kind !== "given" || !isMeaningfulFact(fact)) continue;
-        const text = formatFact(fact);
-        if (text === null) continue;
-        givenItems.push({ text, remove: () => problem.removeGivenFact(fact) });
-    }
-    problem.givenValues.forEach((given, index) => {
-        givenItems.push({
-            text: formatGivenValue(given),
-            remove: () => problem.removeGivenValue(index),
-        });
-    });
+    const givenItems = problem.conditions.map((condition, index) => ({
+        text: formatConditions(condition) ?? "",
+        remove: () => problem.removeCondition(index),
+    }));
 
     // Removal drops the condition and forgets everything derived;
     // re-solve immediately so Found reflects the remaining conditions.

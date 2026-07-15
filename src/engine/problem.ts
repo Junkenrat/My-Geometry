@@ -6,6 +6,7 @@ import type { Quantity, QuantityId } from "./quantities";
 import { QuantityStore } from "./quantities";
 import type { Relation } from "./relations";
 import { relationKey } from "./relations";
+import type { Condition } from "./conditions";
 
 const EPS = 0.000001;
 
@@ -17,10 +18,10 @@ export class Problem {
     angles: Map<string, Angle> = new Map();
     triangles: Map<string, Triangle> = new Map();
     facts: Fact[] = [];
-    goal: Goal | null = null;
-    quantities: QuantityStore = new QuantityStore();
-    givenValues: GivenValue[] = []
     relations: Map<string, Relation> = new Map();
+    quantities: QuantityStore = new QuantityStore();
+    conditions: Condition[] = [];
+    goal: Goal | null = null;
     private nextPointNumber = 0;
     private nextLineNumber = 0;
 
@@ -289,41 +290,54 @@ export class Problem {
         }
     }
 
+    addCondition(condition: Condition): void {
+        this.conditions.push(condition);
+        this.applyCondition(condition);
+    }
+
+    private applyCondition(condition: Condition): void {
+        if (condition.kind === "value") {
+            this.applyGivenValue(condition.target);
+        } else if (condition.kind === "equation") {
+            // Equality of segment LENGTHS: the relation connects quantity ids,
+            // not geometry ids. lengthQuantity also ensures both quantities
+            // exist in the store before propagate touches them.
+            this.addRelation({
+                kind: "equal",
+                a: this.lengthQuantity(condition.equation.a).id,
+                b: this.lengthQuantity(condition.equation.b).id,
+                reason: { theorem: "given", premises: [] }
+            })
+        } else {
+            this.addFact(condition.fact);
+        }
+    }
+
+    removeCondition(index: number): void {
+        const condition = this.conditions[index];
+        if (condition === undefined) return;
+        this.conditions.splice(index, 1);
+        if (condition.kind === "fact") {
+            this.facts = this.facts.filter(f => f !== condition.fact);
+        }
+        this.resetDerived();
+    }
+
     setLength(seg: Segment, value: number): void {
-        const given: GivenValue = { kind: "length", segment: seg, value };
-        this.givenValues.push(given);
-        this.applyGivenValue(given);
+        this.addCondition({ kind: "value", target: { kind: "length", segment: seg, value } });
     }
 
     setAngle(angle: Angle, value: number): void {
-        const given: GivenValue = { kind: "angle", angle, value };
-        this.givenValues.push(given);
-        this.applyGivenValue(given);
+        this.addCondition({ kind: "value", target: { kind: "angle", angle, value } });
     }
 
-    // Forget everything the solver derived; keep the construction and the
-    // givens. Derived GEOMETRY (materialized intersection points, sub-segments,
-    // angles) deliberately survives: with unchanged coordinates the next solve
-    // re-derives the same facts on it. NOT sufficient for moving points.
     resetDerived(): void {
         this.facts = this.facts.filter(f => f.reason.kind === "given");
         this.relations.clear();
         this.quantities = new QuantityStore();
-        for (const given of this.givenValues) {
-            this.applyGivenValue(given);
+        for (const condition of this.conditions) {
+            this.applyCondition(condition);
         }
-    }
-
-    // Removing a condition = drop it from the givens and forget everything
-    // derived; re-solving is the caller's job.
-    removeGivenValue(index: number): void {
-        this.givenValues.splice(index, 1);
-        this.resetDerived();
-    }
-
-    removeGivenFact(fact: Fact): void {
-        this.facts = this.facts.filter(f => f !== fact);
-        this.resetDerived();
     }
 
     setGoal(goal: Goal | null): void {
