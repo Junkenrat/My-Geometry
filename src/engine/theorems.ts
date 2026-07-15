@@ -1,5 +1,5 @@
 import { Problem } from "./problem";
-import type { Angle } from "./types";
+import type { Angle, Point, Segment } from "./types";
 import { segmentIntersection } from "./geometry";
 
 const EPS = 0.000001;
@@ -154,5 +154,39 @@ export function betweennessLength(problem: Problem): void {
             total: problem.lengthQuantity(segAB).id,
             reason: { theorem: "segment_addition", premises: [{ kind: "fact", fact }] },
         });
+    }
+}
+
+function isBelongToSegment(problem: Problem, p: Point, s: Segment): boolean {
+    if (p === s.p1 || p === s.p2) return true
+    return problem.facts.some(f =>
+        f.kind === "between" && f.point === p &&
+        ((f.from === s.p1 && f.to === s.p2) || (f.from === s.p2 && f.to === s.p1)));
+}
+
+function neighborOn(s: Segment, v: Point): Point {
+    if (s.p1 === v) {
+        return s.p2;
+    } else {
+        return s.p1;
+    }
+}
+ 
+export function perpendicularAngles(problem: Problem): void {
+    for (const fact of problem.facts) {
+        if (fact.kind !== "perpendicular") continue;
+        if (fact.seg1 === fact.seg2) continue;
+        for (const v of problem.points.values()) {
+            if (isBelongToSegment(problem, v, fact.seg1) && isBelongToSegment(problem, v, fact.seg2)) {
+                const n1 = neighborOn(fact.seg1, v);
+                const n2 = neighborOn(fact.seg2, v);
+                const angle = problem.addAngle(v.id, n1.id, n2.id);
+                problem.quantities.assign(problem.angleQuantity(angle).id, 90, {
+                    kind: "derived",
+                    theorem: "perpendicular_angles",
+                    premises: [{ kind: "fact", fact }],
+                });
+            }
+        }
     }
 }

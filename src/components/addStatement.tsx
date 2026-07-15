@@ -10,7 +10,7 @@ interface AddStatementProps {
 }
 
 export function AddStatement({ problem, onAdd }: AddStatementProps) {
-    type StatementKind = "length" | "angle" | "right_triangle" | "equal_segments";
+    type StatementKind = "length" | "angle" | "right_triangle" | "equal_segments" | "perpendicular_segments";
     const [kind, setKind] = useState<StatementKind>("length");
     const [selectedSegment, setSelectedSegment] = useState<string | null>(null);
     const [selectedSegment2, setSelectedSegment2] = useState<string | null>(null);
@@ -53,6 +53,16 @@ export function AddStatement({ problem, onAdd }: AddStatementProps) {
                 kind: "equation",
                 equation: { kind: "segments_equal", a, b },
             });
+        } else if (kind === "perpendicular_segments") {
+            if (selectedSegment === null || selectedSegment2 === null) return;
+            if (selectedSegment === selectedSegment2) return;
+            const a = problem.segments.get(selectedSegment);
+            const b = problem.segments.get(selectedSegment2);
+            if (a === undefined || b === undefined) return;
+            problem.addCondition({
+                kind: "fact",
+                fact: {kind: "perpendicular", seg1: a, seg2: b, reason: { kind: "given" }}
+            });
         }
 
         setSelectedSegment(null);
@@ -71,7 +81,7 @@ export function AddStatement({ problem, onAdd }: AddStatementProps) {
                 value={kind}
                 onChange={(e) => setKind(e.target.value as StatementKind)}
             >
-                {["length", "angle", "right_triangle", "equal_segments"].map((key) => (
+                {["length", "angle", "right_triangle", "equal_segments", "perpendicular_segments"].map((key) => (
                     <option key={key} value={key}>{key}</option>
                 ))}
             </select>
@@ -117,6 +127,31 @@ export function AddStatement({ problem, onAdd }: AddStatementProps) {
             )}
 
             {kind === "equal_segments" && (
+                <>
+                    <select className="select"
+                        value={selectedSegment ?? ""}
+                        onChange={(e) => setSelectedSegment(e.target.value || null)}
+                    >
+                        <option value="">— first segment —</option>
+                        {Array.from(problem.segments.entries()).map(([key, seg]) => (
+                            <option key={key} value={key}>{formatSegmentName(seg)}</option>
+                        ))}
+                    </select>
+                    <select className="select"
+                        value={selectedSegment2 ?? ""}
+                        onChange={(e) => setSelectedSegment2(e.target.value || null)}
+                    >
+                        <option value="">— equals segment —</option>
+                        {Array.from(problem.segments.entries())
+                            .filter(([key]) => key !== selectedSegment)
+                            .map(([key, seg]) => (
+                                <option key={key} value={key}>{formatSegmentName(seg)}</option>
+                            ))}
+                    </select>
+                </>
+            )}
+
+            {kind === "perpendicular_segments" && (
                 <>
                     <select className="select"
                         value={selectedSegment ?? ""}

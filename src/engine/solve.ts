@@ -2,11 +2,11 @@ import { Problem } from "./problem";
 import { propagate } from "./relations";
 import {
     betweennessLength, intersections, linearPairs, pointOnSegment,
-    pythagoras, triangleAngleSum, verticalAngles,
+    pythagoras, triangleAngleSum, verticalAngles, perpendicularAngles
 } from "./theorems";
 
 const THEOREMS = [
-    intersections, pointOnSegment, betweennessLength,
+    intersections, pointOnSegment, betweennessLength, perpendicularAngles,
     verticalAngles, linearPairs, triangleAngleSum, pythagoras,
 ];
 const MAX_ITERATIONS = 200;

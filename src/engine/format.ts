@@ -14,6 +14,7 @@ export const THEOREM_NAMES: Record<string, string> = {
     linear_pair: "Linear pair",
     triangle_angle_sum: "Sum of angles in a triangle",
     right_angle: "Right angle",
+    perpendicular_angles: "Perpendicular segments",
     given: "By the given condition"
 };
 
