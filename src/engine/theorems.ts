@@ -190,3 +190,48 @@ export function perpendicularAngles(problem: Problem): void {
         }
     }
 }
+
+// A 90° angle between two segments sharing the vertex  =>  the segments are
+// perpendicular. The reverse of perpendicularAngles; together they terminate
+// because addFact dedupes and assign never re-assigns a known value.
+// Makes the "Prove ⊥" goal achievable.
+export function perpendicularFromAngle(problem: Problem): void {
+    for (const angle of problem.angles.values()) {
+        const value = problem.quantities.value(problem.angleId(angle));
+        if (value === null || Math.abs(value - 90) > EPS) continue;
+        const v = angle.vertex;
+        const s1 = problem.getSegment(v.id, angle.ray1.through.id);
+        const s2 = problem.getSegment(v.id, angle.ray2.through.id);
+        if (!s1 || !s2) continue;
+        problem.addFact({
+            kind: "perpendicular",
+            seg1: s1,
+            seg2: s2,
+            reason: { kind: "derived", theorem: "perpendicular_from_angle", premises: [] },
+        });
+    }
+}
+
+export function rightTriangleFromAngle(problem: Problem): void {
+    for (const triangle of problem.triangles.values()) {
+        const p1_id = triangle.p1.id, p2_id = triangle.p2.id, p3_id = triangle.p3.id;
+        const a1 = problem.getAngle(p1_id, p2_id, p3_id);
+        const a2 = problem.getAngle(p2_id, p1_id, p3_id);
+        const a3 = problem.getAngle(p3_id, p1_id, p2_id);
+        if (a1 === undefined || a2 === undefined || a3 === undefined) continue;
+        for (const angle of [a1, a2, a3]) {
+            const value = problem.quantities.value(problem.angleId(angle));
+            if (value === null) continue;
+            if (Math.abs(value - 90) < EPS) {
+                // premises: [] — the basis is a quantity value, and fact
+                // premises can only be facts (known debt).
+                problem.addFact({
+                    kind: "right_triangle",
+                    triangle: triangle,
+                    rightAngleAt: angle.vertex,
+                    reason: { kind: "derived", theorem: "right_triangle_from_angle", premises: [] }
+                })
+            }
+        }
+    }
+}
