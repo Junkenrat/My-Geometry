@@ -155,3 +155,60 @@ describe("equation conditions (segments_equal)", () => {
         expect(p.quantities.value(p.lengthId(AB))).toBe(5);
     });
 });
+
+describe("equation conditions (segments_ratio)", () => {
+    function twoSegments() {
+        const p = new Problem();
+        const A = p.addPoint(0, 0);
+        const B = p.addPoint(90, 0);
+        const C = p.addPoint(0, 90);
+        const D = p.addPoint(150, 90);
+        p.addSegment(A.id, B.id);
+        p.addSegment(C.id, D.id);
+        const AB = p.getSegment(A.id, B.id)!;
+        const CD = p.getSegment(C.id, D.id)!;
+        return { p, AB, CD };
+    }
+
+    it("a known numerator derives the denominator: AB/CD = 2, AB = 6 => CD = 3", () => {
+        const { p, AB, CD } = twoSegments();
+        p.addCondition({ kind: "equation", equation: { kind: "segments_ratio", a: AB, b: CD, value: 2 } });
+        p.setLength(AB, 6);
+        solve(p);
+        expect(p.quantities.value(p.lengthId(CD))).toBeCloseTo(3, 6);
+    });
+
+    it("a known denominator derives the numerator: AB/CD = 2, CD = 3 => AB = 6", () => {
+        const { p, AB, CD } = twoSegments();
+        p.addCondition({ kind: "equation", equation: { kind: "segments_ratio", a: AB, b: CD, value: 2 } });
+        p.setLength(CD, 3);
+        solve(p);
+        expect(p.quantities.value(p.lengthId(AB))).toBeCloseTo(6, 6);
+    });
+
+    it("reports a conflict when both lengths contradict the ratio", () => {
+        const { p, AB, CD } = twoSegments();
+        p.addCondition({ kind: "equation", equation: { kind: "segments_ratio", a: AB, b: CD, value: 2 } });
+        p.setLength(AB, 6);
+        p.setLength(CD, 5);
+        solve(p);
+        expect(p.quantities.conflicts.length).toBeGreaterThan(0);
+    });
+
+    it("survives resetDerived via replay", () => {
+        const { p, AB, CD } = twoSegments();
+        p.addCondition({ kind: "equation", equation: { kind: "segments_ratio", a: AB, b: CD, value: 2 } });
+        p.setLength(AB, 6);
+        p.resetDerived();
+        solve(p);
+        expect(p.quantities.value(p.lengthId(CD))).toBeCloseTo(3, 6);
+    });
+
+    it("AB/CD and CD/AB with the same value are different conditions", () => {
+        const { p, AB, CD } = twoSegments();
+        p.addCondition({ kind: "equation", equation: { kind: "segments_ratio", a: AB, b: CD, value: 2 } });
+        const before = p.relations.size;
+        p.addCondition({ kind: "equation", equation: { kind: "segments_ratio", a: CD, b: AB, value: 2 } });
+        expect(p.relations.size).toBe(before + 1);
+    });
+});

@@ -299,15 +299,26 @@ export class Problem {
         if (condition.kind === "value") {
             this.applyGivenValue(condition.target);
         } else if (condition.kind === "equation") {
-            // Equality of segment LENGTHS: the relation connects quantity ids,
-            // not geometry ids. lengthQuantity also ensures both quantities
-            // exist in the store before propagate touches them.
-            this.addRelation({
-                kind: "equal",
-                a: this.lengthQuantity(condition.equation.a).id,
-                b: this.lengthQuantity(condition.equation.b).id,
-                reason: { theorem: "given", premises: [] }
-            })
+            // Equations connect segment LENGTHS: the relation refers to
+            // quantity ids, not geometry ids. lengthQuantity also ensures both
+            // quantities exist in the store before propagate touches them.
+            const equation = condition.equation;
+            if (equation.kind === "segments_equal") {
+                this.addRelation({
+                    kind: "equal",
+                    a: this.lengthQuantity(equation.a).id,
+                    b: this.lengthQuantity(equation.b).id,
+                    reason: { theorem: "given", premises: [] }
+                })
+            } else {
+                this.addRelation({
+                    kind: "ratio",
+                    a: this.lengthQuantity(equation.a).id,
+                    b: this.lengthQuantity(equation.b).id,
+                    value: equation.value,
+                    reason: { theorem: "given", premises: [] }
+                })
+            }
         } else {
             this.addFact(condition.fact);
         }

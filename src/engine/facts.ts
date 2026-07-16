@@ -26,6 +26,13 @@ export interface PerpendicularFact {
     readonly reason: Reason;
 }
 
+export interface ParallelFact {
+    readonly kind: "parallel";
+    readonly seg1: Segment;
+    readonly seg2: Segment;
+    readonly reason: Reason;
+}
+
 export interface BetweenFact {
     readonly kind: "between";
     readonly point: Point;
@@ -34,7 +41,7 @@ export interface BetweenFact {
     readonly reason: Reason;
 }
 
-export type Fact = RightTriangleFact | PerpendicularFact | BetweenFact;
+export type Fact = RightTriangleFact | PerpendicularFact | ParallelFact | BetweenFact;
 
 export type Goal =
     | { kind: "length"; segment: Segment }
@@ -43,12 +50,13 @@ export type Goal =
 
 // Whether a fact carries information the user cares about or it's only used by the engine
 export function isMeaningfulFact(fact: Fact): boolean {
-    return fact.kind === "perpendicular" || fact.kind === "right_triangle";
+    return fact.kind === "perpendicular" || fact.kind === "parallel" || fact.kind === "right_triangle";
 }
 
 export function factsEqual(a: Fact, b: Fact): boolean {
     if (a.kind !== b.kind) return false;
-    if (a.kind === "perpendicular" && b.kind === "perpendicular") {
+    if ((a.kind === "perpendicular" && b.kind === "perpendicular")
+        || (a.kind === "parallel" && b.kind === "parallel")) {
         if (a.seg1 === b.seg1 && a.seg2 === b.seg2) {
             return true;
         }

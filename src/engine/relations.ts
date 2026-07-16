@@ -11,11 +11,14 @@ export type Relation =
     // parts[0] + parts[1] + ... = total (another quantity, or a constant like 180)
     | { kind: "sum"; parts: QuantityId[]; total: QuantityId | number; reason: RelationReason }
     // legs[0]² + legs[1]² = hyp²
-    | { kind: "pythagoras"; legs: [QuantityId, QuantityId]; hyp: QuantityId; reason: RelationReason };
+    | { kind: "pythagoras"; legs: [QuantityId, QuantityId]; hyp: QuantityId; reason: RelationReason }
+    // a = value · b
+    | { kind: "ratio"; a: QuantityId; b: QuantityId; value: number; reason: RelationReason };
 
 export function relationKey(rel: Relation): string {
     if (rel.kind === "equal") return `equal:${[rel.a, rel.b].sort().join("|")}`;
     if (rel.kind === "sum") return `sum:${[...rel.parts].sort().join("+")}=${rel.total}`;
+    if (rel.kind === "ratio") return `ratio:${rel.a}=${rel.value}*${rel.b}`;
     return `pyth:${[...rel.legs].sort().join("+")}=${rel.hyp}`;
 }
 
@@ -47,6 +50,7 @@ function derivedReason(rel: Relation, usedIds: QuantityId[]): QReason {
 function trySolveRelation(store: QuantityStore, rel: Relation): boolean {
     if (rel.kind === "equal") return trySolveEqual(store, rel);
     if (rel.kind === "sum") return trySolveSum(store, rel);
+    if (rel.kind === "ratio") return trySolveRatio(store, rel);
     return trySolvePythagoras(store, rel);
 }
 
@@ -62,6 +66,25 @@ function trySolveEqual(store: QuantityStore, rel: Relation & { kind: "equal" }):
     if (va !== null && vb !== null && Math.abs(va - vb) > EPS) {
         store.conflict(`${store.label(rel.a)} = ${va} and ${store.label(rel.b)} = ${vb}, `
             + `but they must be equal (${rel.reason.theorem})`);
+    }
+    return false;
+}
+
+// a = value · b; lengths are positive, so value must be positive too —
+// the input layer is expected to reject value <= 0 before it gets here.
+function trySolveRatio(store: QuantityStore, rel: Relation & { kind: "ratio" }): boolean {
+    if (rel.value <= 0) return false;
+    const va = store.value(rel.a);
+    const vb = store.value(rel.b);
+    if (va !== null && vb === null) {
+        return store.assign(rel.b, va / rel.value, derivedReason(rel, [rel.a]));
+    }
+    if (vb !== null && va === null) {
+        return store.assign(rel.a, vb * rel.value, derivedReason(rel, [rel.b]));
+    }
+    if (va !== null && vb !== null && Math.abs(va - rel.value * vb) > EPS) {
+        store.conflict(`${store.label(rel.a)} = ${va} and ${store.label(rel.b)} = ${vb}, `
+            + `but ${store.label(rel.a)} / ${store.label(rel.b)} must be ${rel.value} (${rel.reason.theorem})`);
     }
     return false;
 }

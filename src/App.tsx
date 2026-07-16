@@ -11,6 +11,30 @@ import "./App.css";
 import { validate } from "./engine/validate";
 
 const GRID = 30;
+const LINE_GRID_RADIUS = 8;
+
+// Nearest to (qx, qy) intersection of the p1-p2 line with the grid lines.
+// Where the line passes through a true grid node both candidates coincide,
+// so nodes attract automatically.
+function snapToGridAlongLine(
+  p1: Point, p2: Point, qx: number, qy: number, clampToSegment: boolean,
+): { x: number; y: number } | null {
+  const dx = p2.x - p1.x, dy = p2.y - p1.y;
+  let best: { x: number; y: number } | null = null;
+  let bestDist = LINE_GRID_RADIUS;
+  const tryCandidate = (t: number) => {
+    if (clampToSegment && (t <= 0 || t >= 1)) return; // stay inside the segment
+    const cand = { x: p1.x + t * dx, y: p1.y + t * dy };
+    const dist = Math.hypot(qx - cand.x, qy - cand.y);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = cand;
+    }
+  };
+  if (dx !== 0) tryCandidate((Math.round(qx / GRID) * GRID - p1.x) / dx); // vertical grid line
+  if (dy !== 0) tryCandidate((Math.round(qy / GRID) * GRID - p1.y) / dy); // horizontal grid line
+  return best;
+}
 
 interface NamingTask {
   key: string;
@@ -68,20 +92,22 @@ function findPointAt(x: number, y: number, hitRadius: number, problem: Problem):
 }
 
 function findLineAt(x: number, y:number, hitRadius: number, problem: Problem): {x: number, y: number, kind: "line"} | null {
-  let result: {x: number, y: number, kind: "line"} | null = null;
+  // The winner remembers its carrier so the projection can then be snapped
+  // to the carrier's grid crossings.
+  let best: { qx: number; qy: number; p1: Point; p2: Point; clamp: boolean } | null = null;
   let minDist = hitRadius;
-  for (const line of problem.segments.values()) {
-    const dx = line.p2.x - line.p1.x, dy = line.p2.y - line.p1.y;
+  for (const seg of problem.segments.values()) {
+    const dx = seg.p2.x - seg.p1.x, dy = seg.p2.y - seg.p1.y;
     const len2 = dx * dx + dy * dy;
     if (len2 === 0) continue;
-    let t =((x - line.p1.x) * dx + (y - line.p1.y) * dy) / len2;
+    let t =((x - seg.p1.x) * dx + (y - seg.p1.y) * dy) / len2;
     t = Math.max(0, Math.min(1, t))
-    const qx = line.p1.x + t * dx;
-    const qy = line.p1.y + t * dy;
+    const qx = seg.p1.x + t * dx;
+    const qy = seg.p1.y + t * dy;
     const dist = Math.hypot(x - qx, y - qy);
-    if (dist < hitRadius && dist < minDist) {
+    if (dist < minDist) {
       minDist = dist;
-      result = {x: qx, y: qy, kind: "line"};
+      best = { qx, qy, p1: seg.p1, p2: seg.p2, clamp: true };
     }
   }
   for (const line of problem.lines.values()) {
@@ -93,12 +119,16 @@ function findLineAt(x: number, y:number, hitRadius: number, problem: Problem): {
     const qx = line.p1.x + t * dx;
     const qy = line.p1.y + t * dy;
     const dist = Math.hypot(x - qx, y - qy);
-    if (dist < hitRadius && dist < minDist) {
+    if (dist < minDist) {
       minDist = dist;
-      result = {x: qx, y: qy, kind: "line"};
+      best = { qx, qy, p1: line.p1, p2: line.p2, clamp: false };
     }
   }
-  return result;
+  if (best === null) return null;
+  const crossing = snapToGridAlongLine(best.p1, best.p2, best.qx, best.qy, best.clamp);
+  return crossing !== null
+    ? { x: crossing.x, y: crossing.y, kind: "line" }
+    : { x: best.qx, y: best.qy, kind: "line" };
 }
 
 function snapPosition(x: number, y: number, problem: Problem): {x: number, y: number, kind: "existingPoint" | "grid" | "line"} {

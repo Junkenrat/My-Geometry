@@ -447,3 +447,71 @@ html, body, #root {
 .statement-remove:hover {
   color: var(--text);
 }
+
+/* combobox for typing/picking statements */
+.statement-box {
+  position: relative;
+}
+
+.statement-input-error {
+  border-color: #b3261e;
+}
+
+.statement-ready {
+  position: absolute;
+  right: 12px;
+  top: 9px;
+  color: var(--green);
+  pointer-events: none;
+}
+
+.statement-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0 0 12px 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  z-index: 20;
+  overflow: hidden;
+}
+
+.statement-suggestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  font-size: 16px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--bg-darker);
+}
+
+.statement-suggestion:last-of-type {
+  border-bottom: none;
+}
+
+.statement-suggestion-active {
+  background: var(--light-accent);
+}
+
+.statement-suggestion-hint {
+  color: var(--text-muted);
+}
+
+.statement-suggestion-check {
+  color: var(--green);
+}
+
+.statement-note {
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.statement-error {
+  margin-top: 4px;
+  color: #b3261e;
+  font-size: 13px;
+}

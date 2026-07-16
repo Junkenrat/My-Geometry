@@ -7,5 +7,7 @@ export type Condition =
     | { kind: "equation"; equation: Equation };
 
 export type Equation =
-    | { kind: "segments_equal"; a: Segment; b: Segment };
+    | { kind: "segments_equal"; a: Segment; b: Segment }
+    // a / b = value
+    | { kind: "segments_ratio"; a: Segment; b: Segment; value: number };
    

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Problem } from "../engine/problem";
-import { formatAngleName, formatSegmentName, formatTriangleName } from "../engine/format";
+import { formatAngleName, formatTriangleName } from "../engine/format";
 import { pointName } from "../engine/types";
+import { StatementBox } from "./statementBox";
 
 
 interface AddStatementProps {
@@ -9,25 +10,19 @@ interface AddStatementProps {
     onAdd: () => void;
 }
 
+// Segment statements (length, equality, ratio, ⊥, ∥) go through the
+// StatementBox combobox; the selects below remain for angle value and
+// right triangle until the grammar covers those too.
 export function AddStatement({ problem, onAdd }: AddStatementProps) {
-    type StatementKind = "length" | "angle" | "right_triangle" | "equal_segments" | "perpendicular_segments";
-    const [kind, setKind] = useState<StatementKind>("length");
-    const [selectedSegment, setSelectedSegment] = useState<string | null>(null);
-    const [selectedSegment2, setSelectedSegment2] = useState<string | null>(null);
+    type StatementKind = "angle" | "right_triangle";
+    const [kind, setKind] = useState<StatementKind>("angle");
     const [selectedAngle, setSelectedAngle] = useState<string | null>(null);
     const [selectedTriangle, setSelectedTriangle] = useState<string | null>(null);
     const [selectedRightVertex, setSelectedRightVertex] = useState<string | null>(null);
     const [value, setValue] = useState<string>("");
 
     function handleAdd() {
-        if (kind === "length") {
-            if (selectedSegment === null || value === "") return;
-            const chosenSegment = problem.segments.get(selectedSegment);
-            if (chosenSegment === undefined) return;
-            if (!Number.isNaN(Number(value))) {
-                problem.setLength(chosenSegment, Number(value));
-            }
-        } else if (kind === "angle") {
+        if (kind === "angle") {
             if (selectedAngle === null || value === "") return;
             const chosenAngle = problem.angles.get(selectedAngle);
             if (chosenAngle === undefined) return;
@@ -43,30 +38,8 @@ export function AddStatement({ problem, onAdd }: AddStatementProps) {
                 kind: "fact",
                 fact: { kind: "right_triangle", triangle: chosenTriangle, rightAngleAt: chosenVertex, reason: { kind: "given" } },
             });
-        } else if (kind === "equal_segments") {
-            if (selectedSegment === null || selectedSegment2 === null) return;
-            if (selectedSegment === selectedSegment2) return;
-            const a = problem.segments.get(selectedSegment);
-            const b = problem.segments.get(selectedSegment2);
-            if (a === undefined || b === undefined) return;
-            problem.addCondition({
-                kind: "equation",
-                equation: { kind: "segments_equal", a, b },
-            });
-        } else if (kind === "perpendicular_segments") {
-            if (selectedSegment === null || selectedSegment2 === null) return;
-            if (selectedSegment === selectedSegment2) return;
-            const a = problem.segments.get(selectedSegment);
-            const b = problem.segments.get(selectedSegment2);
-            if (a === undefined || b === undefined) return;
-            problem.addCondition({
-                kind: "fact",
-                fact: {kind: "perpendicular", seg1: a, seg2: b, reason: { kind: "given" }}
-            });
         }
 
-        setSelectedSegment(null);
-        setSelectedSegment2(null);
         setSelectedAngle(null);
         setSelectedTriangle(null);
         setSelectedRightVertex(null);
@@ -76,35 +49,17 @@ export function AddStatement({ problem, onAdd }: AddStatementProps) {
 
     return (
     <div className="form">
+        <StatementBox problem={problem} onAdd={onAdd} />
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <select className="select"
                 value={kind}
                 onChange={(e) => setKind(e.target.value as StatementKind)}
             >
-                {["length", "angle", "right_triangle", "equal_segments", "perpendicular_segments"].map((key) => (
+                {["angle", "right_triangle"].map((key) => (
                     <option key={key} value={key}>{key}</option>
                 ))}
             </select>
-
-            {kind === "length" && (
-                <>
-                    <select className="select"
-                        value={selectedSegment ?? ""}
-                        onChange={(e) => setSelectedSegment(e.target.value || null)}
-                    >
-                        <option value="">— select segment —</option>
-                        {Array.from(problem.segments.entries()).map(([key, seg]) => (
-                            <option key={key} value={key}>{formatSegmentName(seg)}</option>
-                        ))}
-                    </select>
-                    <input className="input"
-                        type="number" 
-                        value={value}
-                        onChange={(e) => setValue(e.target.value)}
-                        placeholder="length">
-                    </input>
-                </>
-            )}
 
             {kind === "angle" && (
                 <>
@@ -118,61 +73,11 @@ export function AddStatement({ problem, onAdd }: AddStatementProps) {
                         ))}
                     </select>
                     <input className="input"
-                        type="number" 
+                        type="number"
                         value={value}
                         onChange={(e) => setValue(e.target.value)}
                         placeholder="angle value">
                     </input>
-                </>
-            )}
-
-            {kind === "equal_segments" && (
-                <>
-                    <select className="select"
-                        value={selectedSegment ?? ""}
-                        onChange={(e) => setSelectedSegment(e.target.value || null)}
-                    >
-                        <option value="">— first segment —</option>
-                        {Array.from(problem.segments.entries()).map(([key, seg]) => (
-                            <option key={key} value={key}>{formatSegmentName(seg)}</option>
-                        ))}
-                    </select>
-                    <select className="select"
-                        value={selectedSegment2 ?? ""}
-                        onChange={(e) => setSelectedSegment2(e.target.value || null)}
-                    >
-                        <option value="">— equals segment —</option>
-                        {Array.from(problem.segments.entries())
-                            .filter(([key]) => key !== selectedSegment)
-                            .map(([key, seg]) => (
-                                <option key={key} value={key}>{formatSegmentName(seg)}</option>
-                            ))}
-                    </select>
-                </>
-            )}
-
-            {kind === "perpendicular_segments" && (
-                <>
-                    <select className="select"
-                        value={selectedSegment ?? ""}
-                        onChange={(e) => setSelectedSegment(e.target.value || null)}
-                    >
-                        <option value="">— first segment —</option>
-                        {Array.from(problem.segments.entries()).map(([key, seg]) => (
-                            <option key={key} value={key}>{formatSegmentName(seg)}</option>
-                        ))}
-                    </select>
-                    <select className="select"
-                        value={selectedSegment2 ?? ""}
-                        onChange={(e) => setSelectedSegment2(e.target.value || null)}
-                    >
-                        <option value="">— equals segment —</option>
-                        {Array.from(problem.segments.entries())
-                            .filter(([key]) => key !== selectedSegment)
-                            .map(([key, seg]) => (
-                                <option key={key} value={key}>{formatSegmentName(seg)}</option>
-                            ))}
-                    </select>
                 </>
             )}
 
@@ -188,7 +93,7 @@ export function AddStatement({ problem, onAdd }: AddStatementProps) {
                         ))}
                     </select>
                     <select className="select"
-                        value={selectedRightVertex ?? ""} 
+                        value={selectedRightVertex ?? ""}
                         onChange={(e) => setSelectedRightVertex(e.target.value || null)}
                     >
                         <option value="">— right triangle vertex —</option>

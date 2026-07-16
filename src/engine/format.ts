@@ -47,6 +47,8 @@ export function formatTriangleName(triangle: Triangle): string {
 export function formatFact(fact: Fact): string | null {
     if (fact.kind === "perpendicular") {
         return `${formatSegmentName(fact.seg1)} ⟂ ${formatSegmentName(fact.seg2)}`;
+    } else if (fact.kind === "parallel") {
+        return `${formatSegmentName(fact.seg1)} ∥ ${formatSegmentName(fact.seg2)}`;
     } else if (fact.kind === "right_triangle") {
         return `${formatTriangleName(fact.triangle)} is right-angled at ${pointName(fact.rightAngleAt)}`;
     } else if (fact.kind === "between") {
@@ -89,7 +91,11 @@ export function formatConditions(condition: Condition): string | null{
     if (condition.kind === "fact") {
         return formatFact(condition.fact);
     } else if (condition.kind === "equation") {
-        return `${formatSegmentName(condition.equation.a)} = ${formatSegmentName(condition.equation.b)}`;
+        const equation = condition.equation;
+        if (equation.kind === "segments_ratio") {
+            return `${formatSegmentName(equation.a)} / ${formatSegmentName(equation.b)} = ${formatNumber(equation.value)}`;
+        }
+        return `${formatSegmentName(equation.a)} = ${formatSegmentName(equation.b)}`;
     } else if (condition.kind === "value") {
         return (formatGivenValue(condition.target))
     }
