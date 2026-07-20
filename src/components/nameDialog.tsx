@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 interface NameDialogProps {
-    // What is being named, e.g. "Name the first point", "Name the line".
+    // What is being named, e.g. "Name the first point", "Name the second point".
     // The dialog doesn't know the flow — the parent tells it everything.
     title: string;
     // What the object will be called if the user skips.

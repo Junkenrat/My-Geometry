@@ -4,7 +4,7 @@ import { Panel } from "./components/panel";
 import { useEffect, useState } from "react";
 import type { Point } from "./engine/types";
 import { isSolved, solve } from "./engine/solve";
-import { assignLabels, ensureLabel, nextFreeLabel, nextFreeLineLabel } from "./engine/naming";
+import { assignLabels, ensureLabel, nextFreeLabel } from "./engine/naming";
 import { Tools } from "./components/tools";
 import { NameDialog } from "./components/nameDialog";
 import "./App.css";
@@ -42,7 +42,7 @@ interface NamingTask {
   placeholder: () => string;
   submit: (value: string) => string | null;
   // What happens when the dialog closes: points get a fallback letter
-  // if still unnamed, lines legitimately stay unnamed.
+  // if still unnamed.
   auto: () => void;
 }
 
@@ -249,19 +249,12 @@ function App() {
         const existing = findPointAt(snappedX, snappedY, 7, problem);
         if (existing === interaction.first) return;
         const second = existing ?? problem.addPoint(snappedX, snappedY);
-        const line = problem.addExplicitLine(interaction.first.id, second.id);
+        problem.addExplicitLine(interaction.first.id, second.id);
+        // The line itself has no name — it is referred to through its points,
+        // so only the endpoints may need naming.
         const queue: NamingTask[] = [];
         if (interaction.first.label === null) queue.push(pointNamingTask(interaction.first, "Name the first point"));
         if (second.label === null) queue.push(pointNamingTask(second, "Name the second point"));
-        if (line.label === null) {
-          queue.push({
-            key: line.id,
-            title: "Name the line",
-            placeholder: () => nextFreeLineLabel(problem),
-            submit: (value) => problem.renameLine(line.id, value),
-            auto: () => { problem.renameLine(line.id, nextFreeLineLabel(problem)); }
-          });
-        }
         if (queue.length > 0) {
           setInteraction({ mode: "naming_queue", queue, returnTo: "line_start" });
         } else {

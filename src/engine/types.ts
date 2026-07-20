@@ -11,9 +11,10 @@ export function pointName(p: Point): string {
     return p.label ?? p.id;
 }
 
+// Lines have no name of their own: they are always referred to
+// through two of their points, like segments.
 export interface Line {
     readonly id: string;
-    label: string | null; 
     readonly p1: Point;
     readonly p2: Point;
     kind: "drawn" | "implicit";

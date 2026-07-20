@@ -21,18 +21,6 @@ export function ensureLabel(problem: Problem, point: Point): void {
     point.label = firstFreeLabel(usedLabels(problem));
 }
 
-// Suggested name for the next line; first free lowercase letter
-export function nextFreeLineLabel(problem: Problem): string {
-    const used = new Set<string>();
-    for (const line of problem.lines.values()) {
-        if (line.label !== null) used.add(line.label);
-    }
-    for (let index = 0; ; index++) {
-        const label = letterAt(index).toLowerCase();
-        if (!used.has(label)) return label;
-    }
-}
-
 // The letter the next unnamed point would receive from assignLabels. Used for the preview
 export function nextFreeLabel(problem: Problem): string {
     return firstFreeLabel(usedLabels(problem));

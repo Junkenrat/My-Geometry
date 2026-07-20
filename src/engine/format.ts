@@ -33,7 +33,7 @@ export function formatSegmentName(seg: Segment): string {
 }
 
 export function formatLineName(line: Line): string {
-    return line.label ?? `${pointName(line.p1)}${pointName(line.p2)}`;
+    return `${pointName(line.p1)}${pointName(line.p2)}`;
 }
 
 export function formatAngleName(angle: Angle): string {

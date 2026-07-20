@@ -8,7 +8,6 @@ const EPS = 0.000001;
 export interface LineStroke {
     x1: number; y1: number;
     x2: number; y2: number;
-    labelX: number; labelY: number;
 }
 
 export function lineDrawStroke(problem: Problem, line: Line, overhang: number = LINE_OVERHANG): LineStroke | null {
@@ -32,15 +31,10 @@ export function lineDrawStroke(problem: Problem, line: Line, overhang: number = 
     const dt = overhang / len;
     const t1 = tMin - dt;
     const t2 = tMax + dt;
-    const x2 = p1.x + t2 * dx;
-    const y2 = p1.y + t2 * dy;
     return {
         x1: p1.x + t1 * dx,
         y1: p1.y + t1 * dy,
-        x2,
-        y2,
-        // label sits at the far overhang end, nudged off the stroke
-        labelX: x2 - (dy / len) * 12,
-        labelY: y2 + (dx / len) * 12,
+        x2: p1.x + t2 * dx,
+        y2: p1.y + t2 * dy,
     };
 }

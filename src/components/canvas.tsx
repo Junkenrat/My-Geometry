@@ -87,17 +87,6 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, firstPoint
                                     opacity={0.25}
                                 />
                             )}
-                            {line.label !== null && (
-                                <text
-                                    x={stroke.labelX}
-                                    y={stroke.labelY}
-                                    fontSize={16}
-                                    fontStyle="italic"
-                                    fill="#322508"
-                                >
-                                    {line.label}
-                                </text>
-                            )}
                         </g>
                     );
                 })}

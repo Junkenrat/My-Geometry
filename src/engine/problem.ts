@@ -120,7 +120,6 @@ export class Problem {
         const newLine: Line = {
             p1: this.requirePoint(p1),
             p2: this.requirePoint(p2),
-            label: null,
             id: id,
             kind: "implicit"
         };
@@ -133,32 +132,6 @@ export class Problem {
         line.kind = "drawn";
         return line;
     }
-
-    renameLine(id: string, label: string): string | null {
-        const new_l = this.requireLine(id);
-        label = label.toLowerCase();
-        if (!(/^[a-z]$/.test(label))) {
-            return "Must be a single letter a-z";
-        }
-        for (const line of this.lines.values()) {
-            if (line.id === id) continue;
-            if (line.label === label) {
-                return `Name "${label}" is already taken`;
-            }
-        }
-        new_l.label = label;
-        return null;
-    }
-
-    private requireLine(id: string): Line {
-        for (const line of this.lines.values()) {
-            if (line.id === id) {
-                return line;
-            }
-        }
-        throw new Error(`Line "${id}" does not exist. Create it via addLine first.`);
-    }
-
 
     addRay(start: string, thr: string): Ray {
         const key = `${start}>${thr}`;

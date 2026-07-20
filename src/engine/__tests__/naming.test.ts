@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Problem } from "../problem";
-import { assignLabels, ensureLabel, nextFreeLabel, nextFreeLineLabel } from "../naming";
+import { assignLabels, ensureLabel, nextFreeLabel } from "../naming";
 import { formatLineName } from "../format";
 
 // Naming is presentation: ids are identity, labels are handed out later.
@@ -50,15 +50,6 @@ describe("targeted naming helpers", () => {
         expect(nextFreeLabel(p)).toBe("B");
     });
 
-    it("nextFreeLineLabel suggests the first free lowercase letter", () => {
-        const p = new Problem();
-        p.addPoint(0, 0);
-        p.addPoint(90, 0);
-        const line = p.addExplicitLine("p0", "p1");
-        expect(nextFreeLineLabel(p)).toBe("a");
-        p.renameLine(line.id, "a");
-        expect(nextFreeLineLabel(p)).toBe("b");
-    });
 });
 
 describe("renamePoint", () => {
@@ -115,18 +106,7 @@ describe("lines", () => {
         expect(line.kind).toBe("drawn");
     });
 
-    it("renameLine normalizes to lowercase; point 'M' and line 'm' coexist", () => {
-        const p = new Problem();
-        const point = p.addPoint(0, 0);
-        p.addPoint(90, 0);
-        const line = p.addExplicitLine("p0", "p1");
-        expect(p.renameLine(line.id, "M")).toBeNull();
-        expect(line.label).toBe("m");
-        expect(p.renamePoint(point.id, "M")).toBeNull();
-        expect(line.label).toBe("m");
-    });
-
-    it("an unnamed line displays through its points", () => {
+    it("a line displays through its points", () => {
         const p = new Problem();
         const a = p.addPoint(0, 0);
         const b = p.addPoint(90, 0);
@@ -134,7 +114,5 @@ describe("lines", () => {
         p.renamePoint(a.id, "A");
         p.renamePoint(b.id, "B");
         expect(formatLineName(line)).toBe("AB");
-        p.renameLine(line.id, "m");
-        expect(formatLineName(line)).toBe("m");
     });
 });
