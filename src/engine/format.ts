@@ -5,6 +5,7 @@ import type { Segment, Angle, Triangle, Line } from "./types";
 import { pointName } from "./types";
 import type { Condition } from "./conditions";
 
+// Служебные имена теорем и их названия
 export const THEOREM_NAMES: Record<string, string> = {
     pythagoras: "Pythagorean theorem",
     intersection: "Point of intersection",
@@ -20,14 +21,17 @@ export const THEOREM_NAMES: Record<string, string> = {
     given: "By the given condition"
 };
 
+// возвращает название теоремы по служебному имени
 export function getTheoremName(id: string): string {
     return THEOREM_NAMES[id] ?? id;
 }
 
+// Округление до 6 знаков после запятой
 function formatNumber(value: number): number {
     return Math.round(value * 1e6) / 1e6;
 }
 
+// Возвращают имя объекта 
 export function formatSegmentName(seg: Segment): string {
     return `${pointName(seg.p1)}${pointName(seg.p2)}`;
 }
@@ -44,6 +48,7 @@ export function formatTriangleName(triangle: Triangle): string {
     return `△${pointName(triangle.p1)}${pointName(triangle.p2)}${pointName(triangle.p3)}`;
 }
 
+// Преобразует факт в читаемую строку
 export function formatFact(fact: Fact): string | null {
     if (fact.kind === "perpendicular") {
         return `${formatSegmentName(fact.seg1)} ⟂ ${formatSegmentName(fact.seg2)}`;
@@ -58,6 +63,7 @@ export function formatFact(fact: Fact): string | null {
     }
 }
 
+// Преобразует числовой факт в читаемую строку
 export function formatQuantity(quantity: Quantity): string {
     const unit = quantity.id.startsWith("ang:") ? "°" : "";
     if (quantity.value === null) return `${quantity.labelOf()} = ?`;
@@ -87,7 +93,7 @@ export function formatGoal(goal: Goal): string {
     return `Prove ${formatSegmentName(goal.seg1)} ⟂ ${formatSegmentName(goal.seg2)}`;
 }
 
-export function formatConditions(condition: Condition): string | null{
+export function formatConditions(condition: Condition): string | null {
     if (condition.kind === "fact") {
         return formatFact(condition.fact);
     } else if (condition.kind === "equation") {

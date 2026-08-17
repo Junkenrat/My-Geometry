@@ -10,11 +10,9 @@ interface AddStatementProps {
     onAdd: () => void;
 }
 
-// Segment statements (length, equality, ratio, ⊥, ∥) go through the
-// StatementBox combobox; the selects below remain for angle value and
-// right triangle until the grammar covers those too.
+// Старый способ ввода новых фактов, основанный на выборе типа факта через список
 export function AddStatement({ problem, onAdd }: AddStatementProps) {
-    type StatementKind = "angle" | "right_triangle";
+    type StatementKind = "angle" | "right_triangle"; 
     const [kind, setKind] = useState<StatementKind>("angle");
     const [selectedAngle, setSelectedAngle] = useState<string | null>(null);
     const [selectedTriangle, setSelectedTriangle] = useState<string | null>(null);
@@ -48,66 +46,66 @@ export function AddStatement({ problem, onAdd }: AddStatementProps) {
     }
 
     return (
-    <div className="form">
-        <StatementBox problem={problem} onAdd={onAdd} />
+        <div className="form"> 
+            <StatementBox problem={problem} onAdd={onAdd} />
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <select className="select"
-                value={kind}
-                onChange={(e) => setKind(e.target.value as StatementKind)}
-            >
-                {["angle", "right_triangle"].map((key) => (
-                    <option key={key} value={key}>{key}</option>
-                ))}
-            </select>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <select className="select"
+                    value={kind}
+                    onChange={(e) => setKind(e.target.value as StatementKind)}
+                >
+                    {["angle", "right_triangle"].map((key) => (
+                        <option key={key} value={key}>{key}</option>
+                    ))}
+                </select>
 
-            {kind === "angle" && (
-                <>
-                    <select className="select"
-                        value={selectedAngle ?? ""}
-                        onChange={(e) => setSelectedAngle(e.target.value || null)}
-                    >
-                        <option value="">— select angle —</option>
-                        {Array.from(problem.angles.entries()).map(([key, angle]) => (
-                            <option key={key} value={key}>{formatAngleName(angle)}</option>
-                        ))}
-                    </select>
-                    <input className="input"
-                        type="number"
-                        value={value}
-                        onChange={(e) => setValue(e.target.value)}
-                        placeholder="angle value">
-                    </input>
-                </>
-            )}
+                {kind === "angle" && (
+                    <>
+                        <select className="select"
+                            value={selectedAngle ?? ""}
+                            onChange={(e) => setSelectedAngle(e.target.value || null)}
+                        >
+                            <option value="">— select angle —</option>
+                            {Array.from(problem.angles.entries()).map(([key, angle]) => (
+                                <option key={key} value={key}>{formatAngleName(angle)}</option>
+                            ))}
+                        </select>
+                        <input className="input"
+                            type="number"
+                            value={value}
+                            onChange={(e) => setValue(e.target.value)}
+                            placeholder="angle value">
+                        </input>
+                    </>
+                )}
 
-            {kind === "right_triangle" && (
-                <>
-                    <select className="select"
-                        value={selectedTriangle ?? ""}
-                        onChange={(e) => setSelectedTriangle(e.target.value || null)}
-                    >
-                        <option value="">— select triangle —</option>
-                        {Array.from(problem.triangles.entries()).map(([key, triangle]) => (
-                            <option key={key} value={key}>{formatTriangleName(triangle)}</option>
-                        ))}
-                    </select>
-                    <select className="select"
-                        value={selectedRightVertex ?? ""}
-                        onChange={(e) => setSelectedRightVertex(e.target.value || null)}
-                    >
-                        <option value="">— right triangle vertex —</option>
-                        {Array.from(problem.points.values()).map((point) => (
-                            <option key={point.id} value={point.id}>{pointName(point)}</option>
-                        ))}
-                    </select>
-                </>
-            )}
+                {kind === "right_triangle" && (
+                    <>
+                        <select className="select"
+                            value={selectedTriangle ?? ""}
+                            onChange={(e) => setSelectedTriangle(e.target.value || null)}
+                        >
+                            <option value="">— select triangle —</option>
+                            {Array.from(problem.triangles.entries()).map(([key, triangle]) => (
+                                <option key={key} value={key}>{formatTriangleName(triangle)}</option>
+                            ))}
+                        </select>
+                        <select className="select"
+                            value={selectedRightVertex ?? ""}
+                            onChange={(e) => setSelectedRightVertex(e.target.value || null)}
+                        >
+                            <option value="">— right triangle vertex —</option>
+                            {Array.from(problem.points.values()).map((point) => (
+                                <option key={point.id} value={point.id}>{pointName(point)}</option>
+                            ))}
+                        </select>
+                    </>
+                )}
+            </div>
+
+            <div>
+                <button className="btn" onClick={handleAdd}>Add</button>
+            </div>
         </div>
-
-        <div>
-            <button className="btn" onClick={handleAdd}>Add</button>
-        </div>
-    </div>
     );
 }

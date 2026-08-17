@@ -1,17 +1,18 @@
 import type { Segment, Angle, Triangle, Point } from "./types";
 
+// Откуда взялся факт - либо задан по условию (given),
+// либо выведен программой через теоремы (derived).
 export type Reason =
   | { kind: "given" }
+  // theorem - имя теоремы источника; premises - список фактов, которые использовала эта теорема.
   | { kind: "derived"; theorem: string; premises: Fact[] };
-
+  
+// Числовой факт
 export type GivenValue =
   | { kind: "length"; segment: Segment; value: number }
   | { kind: "angle"; angle: Angle; value: number };
 
-// Structural facts about the configuration. The mere existence of a triangle
-// is NOT a fact — it lives in problem.triangles; theorems read that Map
-// directly. Facts carry information beyond existence (which angle is right,
-// which segments are perpendicular, ...).
+// Структурные факты о чертеже - теоремы обращаются именно к ним.
 export interface RightTriangleFact {
     readonly kind: "right_triangle";
     readonly triangle: Triangle;
@@ -43,16 +44,18 @@ export interface BetweenFact {
 
 export type Fact = RightTriangleFact | PerpendicularFact | ParallelFact | BetweenFact;
 
+// Цель задачи - значение объекта или факт.
 export type Goal =
     | { kind: "length"; segment: Segment }
     | { kind: "angle"; angle: Angle }
     | { kind: "perpendicular"; seg1: Segment; seg2: Segment };
 
-// Whether a fact carries information the user cares about or it's only used by the engine
+// Флаг, показывающий содержит ли факт информацию, полезную для пользователя, или использующуюсю только движком.
 export function isMeaningfulFact(fact: Fact): boolean {
     return fact.kind === "perpendicular" || fact.kind === "parallel" || fact.kind === "right_triangle";
 }
 
+// Сравнение фактов
 export function factsEqual(a: Fact, b: Fact): boolean {
     if (a.kind !== b.kind) return false;
     if ((a.kind === "perpendicular" && b.kind === "perpendicular")

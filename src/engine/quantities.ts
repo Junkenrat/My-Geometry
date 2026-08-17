@@ -1,9 +1,9 @@
 import type { Fact } from "./facts";
 
-// Number value of an object
+// Числовое значение объекта
 export type QuantityId = string;
 
-// Fact used for solution
+// Факт, через который получили
 export type Premise =
     | { kind: "fact"; fact: Fact }
     | { kind: "quantity"; id: QuantityId };
@@ -56,7 +56,7 @@ export class QuantityStore {
         return this.byId.get(id)?.labelOf() ?? id;
     }
 
-    // Returns true if a new value was recorded
+    // Возвращает true, если было записано новое число
     assign(id: QuantityId, value: number, reason: QReason): boolean {
         const quantity = this.byId.get(id);
         if (quantity === undefined) {

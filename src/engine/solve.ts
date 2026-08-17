@@ -32,11 +32,11 @@ export function solve(problem: Problem): boolean {
         const factCount = problem.facts.length;
         const relationCount = problem.relations.size;
         const assignmentCount = problem.quantities.assignments.length;
-        // 1. Theorems recognize configurations and emit facts/relations
+        // Пробуем все теоремы и генерируем новые факты
         for (const theorem of THEOREMS) {
             theorem(problem);
         }
-        // 2. The propagation engine computes every value the relations pin down
+        // Вычисляем все возможные значения, используя отношения
         propagate(problem.quantities, problem.relations.values());
         if (problem.facts.length === factCount &&
             problem.relations.size === relationCount &&

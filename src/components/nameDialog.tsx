@@ -1,16 +1,16 @@
 import { useState } from "react";
 
 interface NameDialogProps {
-    // What is being named, e.g. "Name the first point", "Name the second point".
-    // The dialog doesn't know the flow — the parent tells it everything.
+    // Название сообщения вроде "Name the first point" или "Name the second point".
     title: string;
-    // What the object will be called if the user skips.
+    // Имя точки, которое она получит при нажатии "Auto".
+    // Оно же отображается серым в окне ввода.
     placeholder: string;
-    // Attempts the rename; returns an error message to display, or null.
+    // Попытка переименовать - возвращает null либо строку с ошибкой.
     onSubmit: (value: string) => string | null;
-    // Called on both successful confirm and skip; the parent decides
-    // what happens to an object left unnamed.
+    // Присваивает точке букву по дефолту
     onAuto: () => void;
+    // Нужно переделать под onCancel!
     onClose: () => void;
 }
 
@@ -56,9 +56,8 @@ export function NameDialog({ title, placeholder, onSubmit, onClose, onAuto}: Nam
                 <button className="hint-btn-done" onClick={handleConfirm}>Done</button>
                 <button className="hint-btn-cancel" onClick={() => {onAuto(); onClose();}}>Auto</button>
                 <button className="hint-btn-cancel" style={{ marginLeft: "auto"}}>Cancel</button> 
-                {/*A task for the future is to implement the eraser tool. 
-                The undo button here deletes the shape that has just been drawn*/}
                 {/* <button className="hint-btn-cancel" style={{ marginLeft: "auto" }} onClick={onClose}>Skip</button> */}
+                {/* Кнопку "Skip" пока решил убрать, т.к. не ясно, что делать с безымянными объектами */}
             </div>
         </div>
     );

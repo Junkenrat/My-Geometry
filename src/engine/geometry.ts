@@ -1,5 +1,6 @@
 import type { Segment } from "./types";
 
+// Возвращает точку пересечения двух отрезков
 export function segmentIntersection(a: Segment, b: Segment): {x: number, y: number} | null {
     const denom = (a.p1.x - a.p2.x) * (b.p1.y - b.p2.y) - (a.p1.y - a.p2.y) * (b.p1.x - b.p2.x);
     if (denom === 0) return null;

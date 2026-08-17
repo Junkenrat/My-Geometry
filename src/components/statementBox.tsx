@@ -7,6 +7,8 @@ interface StatementBoxProps {
     onAdd: () => void;
 }
 
+// Усовершенствованный приемник новых фактов - через динамический ввод 
+// и навигационный список на основе введенного.
 export function StatementBox({ problem, onAdd }: StatementBoxProps) {
     const [text, setText] = useState("");
     const [highlighted, setHighlighted] = useState(0);
@@ -15,9 +17,10 @@ export function StatementBox({ problem, onAdd }: StatementBoxProps) {
     const state = parseStatementInput(problem, text);
     const suggestions = state.suggestions;
     const active = Math.max(0, Math.min(highlighted, suggestions.length - 1));
-    // "AB = " accepts a hand-typed number too — say so under the segment list
+    // "AB = " принимает и любое число, о чем сообщается в списке.
     const numberNote = state.expected === "segment-or-value" || state.expected === "value";
 
+    // Окончательно проверяет новый факт и фиксирует его в модели, либо выходит, ничего не делая.
     function commit(conditionText: string) {
         const done = parseStatementInput(problem, conditionText);
         if (done.condition === null) return;
@@ -27,6 +30,7 @@ export function StatementBox({ problem, onAdd }: StatementBoxProps) {
         onAdd();
     }
 
+    // Выбирает подсказку из выпадающего списка
     function apply(index: number, commitIfComplete: boolean) {
         const suggestion = suggestions[index];
         if (suggestion === undefined) return;
@@ -65,7 +69,7 @@ export function StatementBox({ problem, onAdd }: StatementBoxProps) {
             <input
                 className={`input ${state.error !== null ? "statement-input-error" : ""}`}
                 value={text}
-                placeholder="Select the object or type: AB ⊥ CD"
+                placeholder="Start entering the condition..."
                 onChange={(e) => { setText(e.target.value); setHighlighted(0); }}
                 onKeyDown={handleKeyDown}
                 onFocus={() => setFocused(true)}
@@ -80,8 +84,6 @@ export function StatementBox({ problem, onAdd }: StatementBoxProps) {
                         <div
                             key={suggestion.apply}
                             className={`statement-suggestion ${index === active ? "statement-suggestion-active" : ""}`}
-                            // mousedown, not click: click would land after the
-                            // input's blur has already closed the list
                             onMouseDown={(e) => { e.preventDefault(); apply(index, true); }}
                             onMouseEnter={() => setHighlighted(index)}
                         >

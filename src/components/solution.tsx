@@ -11,6 +11,7 @@ interface Step {
     result: string;
 }
 
+// Примитивное построение цепочки шагов для решения задачи. Нужно будет переделать.
 export function Solution({ problem }: SolutionProps) {
     const steps: Step[] = [];
     for (const fact of problem.facts) {

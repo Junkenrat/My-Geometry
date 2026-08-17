@@ -25,7 +25,7 @@ export class Problem {
     private nextPointNumber = 0;
     private nextLineNumber = 0;
 
-    // All string arguments of get/add below are point ids
+    // Все аргументы add/get через id точек
 
     getAngleKey(vertex: string, thr1: string, thr2: string): string {
         const keyA = `${vertex}>${thr1}`;
@@ -59,7 +59,7 @@ export class Problem {
         return this.triangles.get(key);
     }
 
-    // Creates a new point every time
+    // Каждый раз создает новую точку
     addPoint(x: number, y: number): Point {
         const id = `p${this.nextPointNumber}`;
         this.nextPointNumber += 1;
@@ -108,7 +108,7 @@ export class Problem {
         return p;
     }
 
-    // Collinear lines passing through different pairs of points form different objects!
+    // Коллинеарные прямые, проходящие через разные пары точек - разные объекты!
     addLine(p1: string, p2: string): Line {
         const key = [p1, p2].sort().join("-");
         const existing = this.lines.get(key);
@@ -235,7 +235,7 @@ export class Problem {
         return this.getSegment(p1, p2) ?? this.addSegment(p1, p2);
     }
 
-    // --- quantities & relations -------------------------------------------
+    // quantities & relations ---------------------------------------
 
     lengthId(seg: Segment): QuantityId {
         return `len:${[seg.p1.id, seg.p2.id].sort().join("-")}`;

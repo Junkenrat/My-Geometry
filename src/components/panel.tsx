@@ -16,7 +16,6 @@ interface PanelProps {
     onSetGoal: () => void;
 }
 
-// isSolved is not destructured while the status line is commented out.
 export function Panel({problem, onSolve, conflicts, onAdd, onSetGoal}: PanelProps) {
     const [activeTab, setActiveTab] = useState<"problem" | "solution">("problem");
     const givenItems = problem.conditions.map((condition, index) => ({
@@ -24,12 +23,14 @@ export function Panel({problem, onSolve, conflicts, onAdd, onSetGoal}: PanelProp
         remove: () => problem.removeCondition(index),
     }));
 
-    // Removal drops the condition and forgets everything derived;
-    // re-solve immediately so Found reflects the remaining conditions.
+    // Удаляет выбранное условие и всё, что было выведено, используя его.
+    // Сразу вызываем onSolve, чтобы вывести остальное правильно.
     function handleRemove(item: { remove: () => void }) {
         item.remove();
         onSolve();
     }
+
+    // Все факты и величины, выведенные программой.
     const foundItems: string[] = [
         ...problem.quantities.assignments
             .filter(a => a.reason.kind === "derived")
@@ -42,7 +43,6 @@ export function Panel({problem, onSolve, conflicts, onAdd, onSetGoal}: PanelProp
 
     return (
         <div className="panel">
-
             <div className="tabs">
                 <button className={`tab ${activeTab === "problem" ? "tab-active" : ""}`}
                 onClick={() => setActiveTab("problem")}>Problem</button>

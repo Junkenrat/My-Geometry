@@ -1,7 +1,7 @@
 import { Problem } from "./problem";
 import type { Line } from "./types";
 
-// How far a drawn line extends past the outermost point lying on it
+// Как далеко прямая выходит за крайнюю точку
 export const LINE_OVERHANG = 55;
 const EPS = 0.000001;
 
@@ -10,6 +10,7 @@ export interface LineStroke {
     x2: number; y2: number;
 }
 
+// Рисует прямую
 export function lineDrawStroke(problem: Problem, line: Line, overhang: number = LINE_OVERHANG): LineStroke | null {
     const { p1, p2 } = line;
     const dx = p2.x - p1.x;

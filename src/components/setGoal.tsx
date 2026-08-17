@@ -3,11 +3,13 @@ import { Problem } from "../engine/problem";
 import { formatAngleName, formatSegmentName } from "../engine/format";
 import { useState } from "react";
 
+// Функция для перерисовки текста React-ом, в onset кладем setVersion(v => v + 1)
 interface SetGoalProps {
   problem: Problem;
   onSet: () => void;
 }
 
+// Старый инструмент для ввода цели, необходимо переделать под динамический ввод.
 export function SetGoal({problem, onSet}: SetGoalProps) {
     const [selectedObject, setSelectedObject] = useState<string | null>(null);
     const [selectedAction, setSelectedAction] = useState<string | null>(null);

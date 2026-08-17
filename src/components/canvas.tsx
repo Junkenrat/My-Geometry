@@ -12,6 +12,7 @@ interface CanvasProps {
     Tool: "point" | "segment" | "ray" | "cursor" | "line";
 }
 
+// Продлевает прямые с kind = "drawn" за пределы холста
 const getExtendedCoordinates = (
     x1: number, 
     y1: number, 
@@ -26,15 +27,12 @@ const getExtendedCoordinates = (
     if (len === 0) {
         return { x1, y1, x2, y2 };
     }
-
     const dirX = dx / len;
     const dirY = dy / len;
 
     return {
-        // Subtract to extend backward past the first point
         x1: x1 - dirX * extendLength,
         y1: y1 - dirY * extendLength,
-        // Add to extend forward past the second point
         x2: x2 + dirX * extendLength,
         y2: y2 + dirY * extendLength
     };
@@ -58,8 +56,7 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, firstPoint
             </defs>
             <rect width="100%" height="100%" fill="url(#grid)" />
 
-            {/* drawn lines go under segments: overlapping parts read as the
-                segment, the overhangs read as its continuation */}
+            {/* Проведенные линии проходят под отрезками */}
             {Array.from(problem.lines.values())
                 .filter((line) => line.kind === "drawn")
                 .map((line) => {
@@ -147,8 +144,8 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, firstPoint
                     opacity={0.18}
                 />
             )}
-            {/* the line preview runs across the whole canvas so the user
-                sees it is a line and what it will pass through */}
+            {/* только при строительстве: продлевает прямую, 
+            чтобы пользователь мог видеть, через какие точки она пройдет*/}
             {curSnapped !== null && firstPoint !== null && Tool === "line" && (() => {
                 const dx = curSnapped.x - firstPoint.x;
                 const dy = curSnapped.y - firstPoint.y;

@@ -8,11 +8,11 @@ export interface RelationReason {
 export type Relation =
     // a = b
     | { kind: "equal"; a: QuantityId; b: QuantityId; reason: RelationReason }
-    // parts[0] + parts[1] + ... = total (another quantity, or a constant like 180)
+    // parts[0] + parts[1] + ... = total 
     | { kind: "sum"; parts: QuantityId[]; total: QuantityId | number; reason: RelationReason }
-    // legs[0]² + legs[1]² = hyp²
+    // legs[0]^2 + legs[1]^2 = hyp^2
     | { kind: "pythagoras"; legs: [QuantityId, QuantityId]; hyp: QuantityId; reason: RelationReason }
-    // a = value · b
+    // a = value * b
     | { kind: "ratio"; a: QuantityId; b: QuantityId; value: number; reason: RelationReason };
 
 export function relationKey(rel: Relation): string {
@@ -70,8 +70,7 @@ function trySolveEqual(store: QuantityStore, rel: Relation & { kind: "equal" }):
     return false;
 }
 
-// a = value · b; lengths are positive, so value must be positive too —
-// the input layer is expected to reject value <= 0 before it gets here.
+// a = value * b
 function trySolveRatio(store: QuantityStore, rel: Relation & { kind: "ratio" }): boolean {
     if (rel.value <= 0) return false;
     const va = store.value(rel.a);

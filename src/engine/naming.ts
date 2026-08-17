@@ -1,7 +1,7 @@
 import { Problem } from "./problem";
 import type { Point } from "./types";
 
-// Hands out letters to points that don't have a name yet. Using geometric order determinism
+// Присваивает буквы безымянным точкам - возможно не нужно
 export function assignLabels(problem: Problem): void {
     const used = usedLabels(problem);
     const unnamed = Array.from(problem.points.values())
@@ -14,14 +14,14 @@ export function assignLabels(problem: Problem): void {
     }
 }
 
-// Targeted fallback: name a single point (and only it), e.g. when the user
-// skips its naming dialog while other points are still waiting for theirs
+// Присваивает имя точке в случае сбоя - возможно не нужно
 export function ensureLabel(problem: Problem, point: Point): void {
     if (point.label !== null) return;
     point.label = firstFreeLabel(usedLabels(problem));
 }
 
-// The letter the next unnamed point would receive from assignLabels. Used for the preview
+// Буква, которую получит следующий неназванный элемент от assignLabels, 
+// используется для предварительного просмотра.
 export function nextFreeLabel(problem: Problem): string {
     return firstFreeLabel(usedLabels(problem));
 }
