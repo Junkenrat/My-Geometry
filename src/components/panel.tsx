@@ -51,10 +51,13 @@ export function Panel({problem, onSolve, conflicts, onAdd, onSetGoal}: PanelProp
             </div>
 
             {activeTab === "problem" && (
-                <>
+                <div className="problem-tab">
                     {/* <div className="status">
                         Status: {isSolved ? "Solved" : "Not enough info"}
                     </div> */}
+                    {/* Given и Found делят свободное место поровну, каждый список
+                        скроллится сам; Goal прижат к низу панели. */}
+                    <div className="panel-section">
                     <h3 className="section-title">Given</h3>
                     <div className="statements-list">
                         {givenItems.length === 0 && (
@@ -75,7 +78,9 @@ export function Panel({problem, onSolve, conflicts, onAdd, onSetGoal}: PanelProp
                     </div>
 
                     <AddStatement problem={problem} onAdd={onAdd} />
+                    </div>
 
+                    <div className="panel-section">
                     <h3 className="section-title">Found</h3>
                     <div className="statements-list">
                         {foundItems.length === 0 && (
@@ -90,22 +95,23 @@ export function Panel({problem, onSolve, conflicts, onAdd, onSetGoal}: PanelProp
                         ))}
                     </div>
 
-                    <h3 className="section-title">Goal</h3>
-
-                    <div className="goal-display">
-                        {problem.goal ? formatGoal(problem.goal) : "no goal"}
                     </div>
 
-                    <SetGoal problem={problem} onSet={onSetGoal} />
-
-                    <button className="btn btn-primary" onClick={onSolve}>Solve</button>
-                </>
+                    <div className="panel-goal">
+                        <h3 className="section-title">Goal</h3>
+                        {problem.goal !== null && (
+                            <div className="goal-display">{formatGoal(problem.goal)}</div>
+                        )}
+                        <SetGoal problem={problem} onSet={onSetGoal} />
+                        <button className="btn btn-primary" onClick={onSolve}>Solve</button>
+                    </div>
+                </div>
             )}
 
             {activeTab === "solution" && (
-                <>
+                <div className="solution-tab">
                     <Solution problem={problem}/>
-                </>
+                </div>
             )}
 
             {conflicts.length > 0 && (

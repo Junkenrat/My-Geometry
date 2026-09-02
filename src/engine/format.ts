@@ -1,7 +1,7 @@
 import type { Fact, GivenValue, Goal } from "./facts";
 import type { Premise, Quantity } from "./quantities";
 import type { Problem } from "./problem";
-import type { Segment, Angle, Triangle, Line } from "./types";
+import type { Segment, Angle, Triangle, Line, Point } from "./types";
 import { pointName } from "./types";
 import type { Condition } from "./conditions";
 
@@ -18,6 +18,7 @@ export const THEOREM_NAMES: Record<string, string> = {
     perpendicular_angles: "Perpendicular segments",
     right_triangle_from_angle: "Right angle in a triangle",
     perpendicular_from_angle: "Perpendicularity from a right angle",
+    equilateral: "Equilateral triangle",
     given: "By the given condition"
 };
 
@@ -56,6 +57,12 @@ export function formatFact(fact: Fact): string | null {
         return `${formatSegmentName(fact.seg1)} ∥ ${formatSegmentName(fact.seg2)}`;
     } else if (fact.kind === "right_triangle") {
         return `${formatTriangleName(fact.triangle)} is right-angled at ${pointName(fact.rightAngleAt)}`;
+    } else if (fact.kind === "equilateral") {
+        return `${formatTriangleName(fact.triangle)} is equilateral`;
+    } else if (fact.kind === "obtuse") {
+        return `${formatTriangleName(fact.triangle)} is obtuse`;
+    } else if (fact.kind === "acute") {
+        return `${formatTriangleName(fact.triangle)} is acute`;
     } else if (fact.kind === "between") {
         return `${pointName(fact.point)} is between ${pointName(fact.from)} and ${pointName(fact.to)}`;
     } else {
@@ -88,18 +95,33 @@ export function formatGoal(goal: Goal): string {
         return `Find ${formatSegmentName(goal.segment)}`;
     }
     if (goal.kind === "angle") {
-        return `Find ${formatAngleName(goal.angle)}`;
+        return `Find ${formatAnglePoints(goal.angle)}`;
     }
-    return `Prove ${formatSegmentName(goal.seg1)} ⟂ ${formatSegmentName(goal.seg2)}`;
+    return `Prove ${formatConditions(goal.condition) ?? "?"}`;
+}
+
+export function formatAnglePoints(a: { vertex: Point; thr1: Point; thr2: Point }): string {
+    return `∠${pointName(a.thr1)}${pointName(a.vertex)}${pointName(a.thr2)}`;
 }
 
 export function formatConditions(condition: Condition): string | null {
     if (condition.kind === "fact") {
         return formatFact(condition.fact);
+    } else if (condition.kind === "angle_value") {
+        return `${formatAnglePoints(condition.angle)} = ${formatNumber(condition.value)}°`;
+    } else if (condition.kind === "triangle") {
+        const t = condition.triangle;
+        const name = `△${pointName(t.p1)}${pointName(t.p2)}${pointName(t.p3)}`;
+        const property = condition.property;
+        if (property.kind === "right") return `${name} is right-angled at ${pointName(property.vertex)}`;
+        return `${name} is ${property.kind}`;
     } else if (condition.kind === "equation") {
         const equation = condition.equation;
         if (equation.kind === "segments_ratio") {
             return `${formatSegmentName(equation.a)} / ${formatSegmentName(equation.b)} = ${formatNumber(equation.value)}`;
+        }
+        if (equation.kind === "angles_equal") {
+            return `${formatAnglePoints(equation.a)} = ${formatAnglePoints(equation.b)}`;
         }
         return `${formatSegmentName(equation.a)} = ${formatSegmentName(equation.b)}`;
     } else if (condition.kind === "value") {

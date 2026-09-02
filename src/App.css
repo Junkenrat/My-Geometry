@@ -211,10 +211,54 @@ html, body, #root {
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  overflow-y: auto;
+  /* sections scroll on their own; the panel itself never scrolls */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   z-index: 10;
   min-width: 320px;
   max-width: 480px;
+}
+
+/* Problem tab: Given and Found share the free height equally, Goal is pinned
+   to the bottom. min-height: 0 lets flex children shrink below content size
+   so the inner lists can scroll instead of pushing the panel open. */
+.problem-tab {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-section {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-section .statements-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.panel-goal {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panel-goal .section-title {
+  margin-bottom: 0;
+}
+
+.solution-tab {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .tools {
@@ -478,6 +522,14 @@ html, body, #root {
   overflow: hidden;
 }
 
+/* opens upward — for the goal box pinned to the panel bottom */
+.statement-suggestions-up {
+  top: auto;
+  bottom: 100%;
+  border-radius: 6px 6px 0 0;
+  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.08);
+}
+
 .statement-suggestion {
   display: flex;
   align-items: center;
@@ -513,5 +565,12 @@ html, body, #root {
 .statement-error {
   margin-top: 4px;
   color: #b3261e;
+  font-size: 13px;
+}
+
+/* live readout of what Enter will do in the goal box */
+.statement-preview {
+  margin-top: 4px;
+  color: var(--green);
   font-size: 13px;
 }

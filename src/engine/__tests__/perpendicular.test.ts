@@ -146,7 +146,8 @@ describe("perpendicularFromAngle (reverse bridge)", () => {
         const C = p.addPoint(90, 120);
         p.addSegment(A.id, B.id);
         p.addSegment(B.id, C.id);
-        p.setGoal({ kind: "perpendicular", seg1: p.getSegment(A.id, B.id)!, seg2: p.getSegment(B.id, C.id)! });
+        p.setGoal({ kind: "prove", condition: { kind: "fact", fact: { kind: "perpendicular",
+            seg1: p.getSegment(A.id, B.id)!, seg2: p.getSegment(B.id, C.id)!, reason: { kind: "given" } } } });
         p.setAngle(p.addAngle(B.id, A.id, C.id), 90);
         expect(solve(p)).toBe(true);
     });

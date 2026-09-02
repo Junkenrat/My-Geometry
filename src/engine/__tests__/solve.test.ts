@@ -30,7 +30,7 @@ describe("solve", () => {
     it("angle goal: right triangle with one acute angle known derives the other", () => {
         const { p, A, B, C } = rightTriangle345();
         p.setAngle(p.getAngle(A.id, B.id, C.id)!, 30);
-        p.setGoal({ kind: "angle", angle: p.getAngle(B.id, A.id, C.id)! });
+        p.setGoal({ kind: "angle", angle: { vertex: B, thr1: A, thr2: C } });
         expect(solve(p)).toBe(true);
         expect(p.quantities.value(p.angleId(p.getAngle(B.id, A.id, C.id)!))).toBeCloseTo(60, 6);
     });
@@ -80,5 +80,34 @@ describe("solve", () => {
         p.setLength(p.getSegment(E.id, B.id)!, 7);
         solve(p);
         expect(p.quantities.conflicts.length).toBeGreaterThan(0);
+    });
+});
+
+describe("prove goals", () => {
+    it("a fact goal: AB ⊥ BC becomes provable once a 90° angle is given", () => {
+        const p = new Problem();
+        const A = p.addPoint(0, 0);
+        const B = p.addPoint(90, 0);
+        const C = p.addPoint(90, 120);
+        p.addSegment(A.id, B.id);
+        p.addSegment(B.id, C.id);
+        const AB = p.getSegment(A.id, B.id)!;
+        const BC = p.getSegment(B.id, C.id)!;
+        p.setGoal({ kind: "prove", condition: { kind: "fact",
+            fact: { kind: "perpendicular", seg1: AB, seg2: BC, reason: { kind: "given" } } } });
+        expect(solve(p)).toBe(false);
+        p.setAngle(p.addAngle(B.id, A.id, C.id), 90);
+        expect(solve(p)).toBe(true);
+    });
+
+    it("a value goal holds only when the measure is known and agrees", () => {
+        const { p, A, B, C } = rightTriangle345();
+        p.setLength(p.getSegment(A.id, C.id)!, 3);
+        p.setLength(p.getSegment(B.id, C.id)!, 4);
+        const AB = p.getSegment(A.id, B.id)!;
+        p.setGoal({ kind: "prove", condition: { kind: "value", target: { kind: "length", segment: AB, value: 5 } } });
+        expect(solve(p)).toBe(true);
+        p.setGoal({ kind: "prove", condition: { kind: "value", target: { kind: "length", segment: AB, value: 6 } } });
+        expect(solve(p)).toBe(false);
     });
 });

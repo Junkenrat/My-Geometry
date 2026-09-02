@@ -1,12 +1,12 @@
 import type { Point, Line, Ray, Segment, Angle, Triangle } from "./types";
 import { pointName } from "./types";
-import type { Fact, GivenValue, Goal } from "./facts";
+import type { Fact, GivenValue, Goal, Reason } from "./facts";
 import { factsEqual } from "./facts";
 import type { Quantity, QuantityId } from "./quantities";
 import { QuantityStore } from "./quantities";
 import type { Relation } from "./relations";
 import { relationKey } from "./relations";
-import type { Condition } from "./conditions";
+import type { AnglePoints, Condition, TrianglePoints, TriangleProperty } from "./conditions";
 
 const EPS = 0.000001;
 
@@ -245,6 +245,12 @@ export class Problem {
         return `ang:${this.getAngleKey(angle.vertex.id, angle.ray1.through.id, angle.ray2.through.id)}`;
     }
 
+    // The same id from three points — lets goals/conditions refer to an angle
+    // without materializing it.
+    angleIdOf(a: AnglePoints): QuantityId {
+        return `ang:${this.getAngleKey(a.vertex.id, a.thr1.id, a.thr2.id)}`;
+    }
+
     lengthQuantity(seg: Segment): Quantity {
         return this.quantities.ensure(this.lengthId(seg),
             () => `${pointName(seg.p1)}${pointName(seg.p2)}`);
@@ -268,13 +274,42 @@ export class Problem {
         this.applyCondition(condition);
     }
 
+    // The angle in a condition is stored as three points; materialize it here
+    // (addAngle is idempotent) so the parser never has to touch the drawing.
+    private materializeAngle(a: AnglePoints): Angle {
+        return this.addAngle(a.vertex.id, a.thr1.id, a.thr2.id);
+    }
+
+    // Same idea for triangles: the condition carries points, the geometry is
+    // built here, then the corresponding structural fact is recorded. Theorems
+    // (equilateral, pythagoras) read that fact and derive equalities.
+    private applyTriangleCondition(t: TrianglePoints, property: TriangleProperty): void {
+        const triangle = this.addTriangle(t.p1.id, t.p2.id, t.p3.id);
+        const reason: Reason = { kind: "given" };
+        if (property.kind === "right") {
+            this.addFact({ kind: "right_triangle", triangle, rightAngleAt: property.vertex, reason });
+        } else if (property.kind === "equilateral") {
+            this.addFact({ kind: "equilateral", triangle, reason });
+        } else if (property.kind === "obtuse") {
+            this.addFact({ kind: "obtuse", triangle, reason });
+        } else {
+            this.addFact({ kind: "acute", triangle, reason });
+        }
+    }
+
     private applyCondition(condition: Condition): void {
         if (condition.kind === "value") {
             this.applyGivenValue(condition.target);
+        } else if (condition.kind === "angle_value") {
+            const angle = this.materializeAngle(condition.angle);
+            this.quantities.assign(this.angleQuantity(angle).id, condition.value, { kind: "given" });
+        } else if (condition.kind === "triangle") {
+            this.applyTriangleCondition(condition.triangle, condition.property);
         } else if (condition.kind === "equation") {
-            // Equations connect segment LENGTHS: the relation refers to
-            // quantity ids, not geometry ids. lengthQuantity also ensures both
-            // quantities exist in the store before propagate touches them.
+            // Equations connect quantities (lengths or angle measures): the
+            // relation refers to quantity ids, not geometry ids. lengthQuantity
+            // / angleQuantity also ensure both quantities exist in the store
+            // before propagate touches them.
             const equation = condition.equation;
             if (equation.kind === "segments_equal") {
                 this.addRelation({
@@ -283,12 +318,19 @@ export class Problem {
                     b: this.lengthQuantity(equation.b).id,
                     reason: { theorem: "given", premises: [] }
                 })
-            } else {
+            } else if (equation.kind === "segments_ratio") {
                 this.addRelation({
                     kind: "ratio",
                     a: this.lengthQuantity(equation.a).id,
                     b: this.lengthQuantity(equation.b).id,
                     value: equation.value,
+                    reason: { theorem: "given", premises: [] }
+                })
+            } else {
+                this.addRelation({
+                    kind: "equal",
+                    a: this.angleQuantity(this.materializeAngle(equation.a)).id,
+                    b: this.angleQuantity(this.materializeAngle(equation.b)).id,
                     reason: { theorem: "given", premises: [] }
                 })
             }

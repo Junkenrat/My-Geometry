@@ -212,6 +212,28 @@ export function perpendicularFromAngle(problem: Problem): void {
     }
 }
 
+// equilateral ABC  =>  AB = BC = CA and every angle = 60°
+export function equilateralTriangle(problem: Problem): void {
+    for (const fact of problem.facts) {
+        if (fact.kind !== "equilateral") continue;
+        const { p1, p2, p3 } = fact.triangle;
+        const s12 = problem.ensureSegment(p1.id, p2.id);
+        const s23 = problem.ensureSegment(p2.id, p3.id);
+        const s31 = problem.ensureSegment(p3.id, p1.id);
+        const premises = [{ kind: "fact" as const, fact }];
+        problem.addRelation({ kind: "equal", a: problem.lengthQuantity(s12).id,
+            b: problem.lengthQuantity(s23).id, reason: { theorem: "equilateral", premises } });
+        problem.addRelation({ kind: "equal", a: problem.lengthQuantity(s23).id,
+            b: problem.lengthQuantity(s31).id, reason: { theorem: "equilateral", premises } });
+        const corners: [Point, Point, Point][] = [[p1, p2, p3], [p2, p1, p3], [p3, p1, p2]];
+        for (const [v, a, b] of corners) {
+            const angle = problem.getAngle(v.id, a.id, b.id) ?? problem.addAngle(v.id, a.id, b.id);
+            problem.quantities.assign(problem.angleQuantity(angle).id, 60, {
+                kind: "derived", theorem: "equilateral", premises });
+        }
+    }
+}
+
 export function rightTriangleFromAngle(problem: Problem): void {
     for (const triangle of problem.triangles.values()) {
         const p1_id = triangle.p1.id, p2_id = triangle.p2.id, p3_id = triangle.p3.id;

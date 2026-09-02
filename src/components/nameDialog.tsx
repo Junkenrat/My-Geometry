@@ -57,7 +57,7 @@ export function NameDialog({ title, placeholder, onSubmit, onClose, onAuto}: Nam
                 <button className="hint-btn-cancel" onClick={() => {onAuto(); onClose();}}>Auto</button>
                 <button className="hint-btn-cancel" style={{ marginLeft: "auto"}}>Cancel</button> 
                 {/* <button className="hint-btn-cancel" style={{ marginLeft: "auto" }} onClick={onClose}>Skip</button> */}
-                {/* Кнопку "Skip" пока решил убрать, т.к. не ясно, что делать с безымянными объектами */}
+                {/* Кнопку "Skip" пока решено убрать, т.к. не ясно, что делать с безымянными объектами */}
             </div>
         </div>
     );

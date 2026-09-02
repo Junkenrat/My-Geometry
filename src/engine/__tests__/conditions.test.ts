@@ -212,3 +212,105 @@ describe("equation conditions (segments_ratio)", () => {
         expect(p.relations.size).toBe(before + 1);
     });
 });
+
+describe("angle conditions", () => {
+    // ∠ABC at B and ∠DEF at E, each carried as three points.
+    function twoAngles() {
+        const p = new Problem();
+        const A = p.addPoint(0, 0);
+        const B = p.addPoint(90, 0);
+        const C = p.addPoint(90, 90);
+        const D = p.addPoint(300, 0);
+        const E = p.addPoint(390, 0);
+        const F = p.addPoint(390, 90);
+        p.renamePoint(A.id, "A");
+        p.renamePoint(B.id, "B");
+        p.renamePoint(C.id, "C");
+        p.renamePoint(D.id, "D");
+        p.renamePoint(E.id, "E");
+        p.renamePoint(F.id, "F");
+        p.addSegment(A.id, B.id);
+        p.addSegment(B.id, C.id);
+        p.addSegment(D.id, E.id);
+        p.addSegment(E.id, F.id);
+        return { p, A, B, C, D, E, F };
+    }
+
+    it("angle_value materializes the angle and assigns its measure", () => {
+        const { p, A, B, C } = twoAngles();
+        expect(p.angles.size).toBe(0);
+        p.addCondition({ kind: "angle_value", angle: { vertex: B, thr1: A, thr2: C }, value: 50 });
+        solve(p);
+        const ang = p.getAngle(B.id, A.id, C.id)!;
+        expect(ang).toBeDefined();
+        expect(p.quantities.value(p.angleId(ang))).toBeCloseTo(50, 6);
+    });
+
+    it("angles_equal propagates a known measure to the other angle", () => {
+        const { p, A, B, C, D, E, F } = twoAngles();
+        p.addCondition({ kind: "angle_value", angle: { vertex: B, thr1: A, thr2: C }, value: 50 });
+        p.addCondition({ kind: "equation", equation: { kind: "angles_equal",
+            a: { vertex: B, thr1: A, thr2: C }, b: { vertex: E, thr1: D, thr2: F } } });
+        solve(p);
+        const def = p.getAngle(E.id, D.id, F.id)!;
+        expect(p.quantities.value(p.angleId(def))).toBeCloseTo(50, 6);
+    });
+
+    it("angle equality survives resetDerived via replay", () => {
+        const { p, A, B, C, D, E, F } = twoAngles();
+        p.addCondition({ kind: "angle_value", angle: { vertex: B, thr1: A, thr2: C }, value: 50 });
+        p.addCondition({ kind: "equation", equation: { kind: "angles_equal",
+            a: { vertex: B, thr1: A, thr2: C }, b: { vertex: E, thr1: D, thr2: F } } });
+        solve(p);
+        p.resetDerived();
+        solve(p);
+        const def = p.getAngle(E.id, D.id, F.id)!;
+        expect(p.quantities.value(p.angleId(def))).toBeCloseTo(50, 6);
+    });
+});
+
+describe("triangle conditions", () => {
+    function triangle() {
+        const p = new Problem();
+        const A = p.addPoint(0, 0);
+        const B = p.addPoint(120, 0);
+        const C = p.addPoint(60, 100);
+        p.renamePoint(A.id, "A");
+        p.renamePoint(B.id, "B");
+        p.renamePoint(C.id, "C");
+        p.addSegment(A.id, B.id);
+        p.addSegment(B.id, C.id);
+        p.addSegment(C.id, A.id);
+        return { p, A, B, C };
+    }
+
+    it("equilateral: one side pins the others and every angle is 60", () => {
+        const { p, A, B, C } = triangle();
+        p.addCondition({ kind: "triangle", triangle: { p1: A, p2: B, p3: C }, property: { kind: "equilateral" } });
+        p.setLength(p.getSegment(A.id, B.id)!, 7);
+        solve(p);
+        expect(p.quantities.value(p.lengthId(p.getSegment(B.id, C.id)!))).toBeCloseTo(7, 6);
+        expect(p.quantities.value(p.lengthId(p.getSegment(C.id, A.id)!))).toBeCloseTo(7, 6);
+        expect(p.quantities.value(p.angleId(p.getAngle(A.id, B.id, C.id)!))).toBeCloseTo(60, 6);
+        expect(p.quantities.value(p.angleId(p.getAngle(B.id, A.id, C.id)!))).toBeCloseTo(60, 6);
+    });
+
+    it("right: materializes a right_triangle fact and drives Pythagoras", () => {
+        const { p, A, B, C } = triangle();
+        p.addCondition({ kind: "triangle", triangle: { p1: A, p2: B, p3: C }, property: { kind: "right", vertex: C } });
+        p.setLength(p.getSegment(C.id, A.id)!, 3);
+        p.setLength(p.getSegment(C.id, B.id)!, 4);
+        solve(p);
+        expect(p.facts.some(f => f.kind === "right_triangle")).toBe(true);
+        expect(p.quantities.value(p.lengthId(p.getSegment(A.id, B.id)!))).toBeCloseTo(5, 6);
+    });
+
+    it("obtuse and acute are recorded but inert", () => {
+        const { p, A, B, C } = triangle();
+        p.addCondition({ kind: "triangle", triangle: { p1: A, p2: B, p3: C }, property: { kind: "obtuse" } });
+        solve(p);
+        expect(p.facts.some(f => f.kind === "obtuse")).toBe(true);
+        // no measures derived from an inequality-only predicate
+        expect(p.quantities.assignments.filter(a => a.reason.kind === "derived")).toHaveLength(0);
+    });
+});
