@@ -100,6 +100,13 @@ export function formatGoal(goal: Goal): string {
     return `Prove ${formatConditions(goal.condition) ?? "?"}`;
 }
 
+// Как цель выглядит в самом поле ввода: "AB — ?" / "Prove: AB = CD".
+export function formatGoalInput(goal: Goal): string {
+    if (goal.kind === "length") return `${formatSegmentName(goal.segment)} — ?`;
+    if (goal.kind === "angle") return `${formatAnglePoints(goal.angle)} — ?`;
+    return `Prove: ${formatConditions(goal.condition) ?? "?"}`;
+}
+
 export function formatAnglePoints(a: { vertex: Point; thr1: Point; thr2: Point }): string {
     return `∠${pointName(a.thr1)}${pointName(a.vertex)}${pointName(a.thr2)}`;
 }

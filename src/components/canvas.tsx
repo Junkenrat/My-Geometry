@@ -1,12 +1,18 @@
 import { Problem } from "../engine/problem";
 import type { Point } from "../engine/types";
-import { lineDrawStroke } from "../engine/lineStroke";
+import { lineDrawStroke, rayDrawStroke } from "../engine/lineStroke";
 
 interface CanvasProps {
     problem: Problem;
     onClick: (e: React.MouseEvent<SVGSVGElement>) => void;
     onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => void;
     onMouseLeave: () => void;
+    onMouseDown: (e: React.MouseEvent<SVGSVGElement>) => void;
+    onMouseUp: () => void;
+    // Сдвиг чертежа при перетаскивании (режим курсора). Экранные координаты
+    // получаются из координат задачи прибавлением view.
+    view: { x: number; y: number };
+    panning: boolean;
     firstPoint: Point | null;
     curSnapped: { x: number; y: number; kind: "grid" | "existingPoint" | "line" } | null;
     Tool: "point" | "segment" | "ray" | "cursor" | "line";
@@ -38,23 +44,30 @@ const getExtendedCoordinates = (
     };
 };
 
-export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, firstPoint, curSnapped, Tool }: CanvasProps) {
+export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDown, onMouseUp,
+                        view, panning, firstPoint, curSnapped, Tool }: CanvasProps) {
     return (
         <svg
-            className="canvas"
+            className={`canvas ${Tool === "cursor" ? (panning ? "canvas-panning" : "canvas-pannable") : ""}`}
             width="100%"
             height="100%"
             onClick={onClick}
             onMouseMove={onMouseMove}
             onMouseLeave={onMouseLeave}
+            onMouseDown={onMouseDown}
+            onMouseUp={onMouseUp}
         >
             <defs>
-                <pattern id="grid" x="0" y="0" width="30" height="30" patternUnits="userSpaceOnUse">
+                <pattern id="grid" x="0" y="0" width="30" height="30" patternUnits="userSpaceOnUse"
+                         patternTransform={`translate(${view.x}, ${view.y})`}>
                     <line x1="0" y1="0" x2="30" y2="0" stroke="#000000" strokeWidth="1" opacity={0.07} />
                     <line x1="0" y1="0" x2="0" y2="30" stroke="#000000" strokeWidth="1" opacity={0.07} />
                 </pattern>
             </defs>
             <rect width="100%" height="100%" fill="url(#grid)" />
+
+            {/* Всё содержимое чертежа сдвигается целиком */}
+            <g transform={`translate(${view.x}, ${view.y})`}>
 
             {/* Проведенные линии проходят под отрезками */}
             {Array.from(problem.lines.values())
@@ -73,12 +86,47 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, firstPoint
                                 stroke="#6B5C39"
                                 strokeWidth={1.5}
                             />
-                            {(Tool === "point" || Tool === "segment" || Tool === "line") && (
+                            {(Tool === "point" || Tool === "segment" || Tool === "line" || Tool === "ray") && (
                                 <line
                                     x1={extended.x1}
                                     y1={extended.y1}
                                     x2={extended.x2}
                                     y2={extended.y2}
+                                    stroke="#6B5C39"
+                                    strokeWidth={1.5}
+                                    opacity={0.25}
+                                />
+                            )}
+                        </g>
+                    );
+                })}
+
+            {/* Лучи: сплошная часть до крайней точки, дальше — бледное
+                продолжение только вперёд (назад луч не идёт) */}
+            {Array.from(problem.rays.values())
+                .filter((ray) => ray.kind === "drawn")
+                .map((ray) => {
+                    const stroke = rayDrawStroke(problem, ray);
+                    if (stroke === null) return null;
+                    const dx = stroke.x2 - stroke.x1, dy = stroke.y2 - stroke.y1;
+                    const len = Math.hypot(dx, dy);
+                    const k = len === 0 ? 0 : 10000 / len;
+                    return (
+                        <g key={`${ray.start.id}>${ray.through.id}`}>
+                            <line
+                                x1={stroke.x1}
+                                y1={stroke.y1}
+                                x2={stroke.x2}
+                                y2={stroke.y2}
+                                stroke="#6B5C39"
+                                strokeWidth={1.5}
+                            />
+                            {(Tool === "point" || Tool === "segment" || Tool === "line" || Tool === "ray") && (
+                                <line
+                                    x1={stroke.x2}
+                                    y1={stroke.y2}
+                                    x2={stroke.x2 + dx * k}
+                                    y2={stroke.y2 + dy * k}
                                     stroke="#6B5C39"
                                     strokeWidth={1.5}
                                     opacity={0.25}
@@ -124,15 +172,21 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, firstPoint
                     </text>
                 ))}
 
-            {curSnapped !== null && (Tool === "point" || Tool === "segment" || Tool === "line") && (
-                <circle
-                    cx={curSnapped.x}
-                    cy={curSnapped.y}
-                    r={curSnapped.kind === "existingPoint" ? 6 : 4}
-                    fill={curSnapped.kind === "existingPoint" ? "#1F8A70" : "gray"}
-                    opacity={curSnapped.kind === "existingPoint" ? "1" : "0.4"}
-                />
-            )}
+            {curSnapped !== null && (Tool === "point" || Tool === "segment" || Tool === "line" || Tool === "ray") && (() => {
+                // Инструменту "точка" существующая точка мешает: новую туда не
+                // поставить, поэтому призрак краснеет. Остальным инструментам
+                // такая привязка, наоборот, нужна — им она зелёная.
+                const blocked = Tool === "point" && curSnapped.kind === "existingPoint";
+                return (
+                    <circle
+                        cx={curSnapped.x}
+                        cy={curSnapped.y}
+                        r={5}
+                        fill={blocked ? "#b3261e" : curSnapped.kind === "existingPoint" ? "#1F8A70" : "gray"}
+                        opacity={curSnapped.kind === "existingPoint" ? "1" : "0.4"}
+                    />
+                );
+            })()}
             {curSnapped !== null && firstPoint !== null && Tool === "segment" && (
                 <line
                     x1={firstPoint.x}
@@ -144,6 +198,24 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, firstPoint
                     opacity={0.18}
                 />
             )}
+            {/* предпросмотр луча: от начала вперёд через текущую точку */}
+            {curSnapped !== null && firstPoint !== null && Tool === "ray" && (() => {
+                const dx = curSnapped.x - firstPoint.x;
+                const dy = curSnapped.y - firstPoint.y;
+                if (dx === 0 && dy === 0) return null;
+                const k = 10000 / Math.hypot(dx, dy);
+                return (
+                    <line
+                        x1={firstPoint.x}
+                        y1={firstPoint.y}
+                        x2={firstPoint.x + dx * k}
+                        y2={firstPoint.y + dy * k}
+                        stroke="gray"
+                        strokeWidth={2}
+                        opacity={0.18}
+                    />
+                );
+            })()}
             {/* только при строительстве: продлевает прямую, 
             чтобы пользователь мог видеть, через какие точки она пройдет*/}
             {curSnapped !== null && firstPoint !== null && Tool === "line" && (() => {
@@ -163,6 +235,7 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, firstPoint
                     />
                 );
             })()}
+            </g>
         </svg>
     );
 }

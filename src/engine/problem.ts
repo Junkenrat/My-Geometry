@@ -142,10 +142,18 @@ export class Problem {
         const newRay: Ray = {
             start: this.requirePoint(start),
             through: this.requirePoint(thr),
-            line: this.addLine(start, thr)
+            line: this.addLine(start, thr),
+            kind: "implicit"
         };
         this.rays.set(key, newRay);
         return newRay;
+    }
+
+    // Луч, построенный пользователем: повышает существующий служебный до "drawn".
+    addExplicitRay(start: string, thr: string): Ray {
+        const ray = this.addRay(start, thr);
+        ray.kind = "drawn";
+        return ray;
     }
 
     addSegment(p1: string, p2: string): Segment {
@@ -364,6 +372,24 @@ export class Problem {
         for (const condition of this.conditions) {
             this.applyCondition(condition);
         }
+    }
+
+    // Полный сброс: чертёж, условия, выводы и цель. Необратимо —
+    // истории шагов пока нет.
+    clear(): void {
+        this.points.clear();
+        this.lines.clear();
+        this.segments.clear();
+        this.rays.clear();
+        this.angles.clear();
+        this.triangles.clear();
+        this.facts = [];
+        this.relations.clear();
+        this.quantities = new QuantityStore();
+        this.conditions = [];
+        this.goal = null;
+        this.nextPointNumber = 0;
+        this.nextLineNumber = 0;
     }
 
     setGoal(goal: Goal | null): void {

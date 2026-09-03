@@ -1,4 +1,4 @@
-import { formatConditions, formatFact, formatGoal, formatQuantity } from "../engine/format";
+import { formatConditions, formatFact, formatQuantity } from "../engine/format";
 import { isMeaningfulFact } from "../engine/facts";
 import { Problem } from "../engine/problem";
 import { AddStatement } from "./addStatement";
@@ -58,26 +58,25 @@ export function Panel({problem, onSolve, conflicts, onAdd, onSetGoal}: PanelProp
                     {/* Given и Found делят свободное место поровну, каждый список
                         скроллится сам; Goal прижат к низу панели. */}
                     <div className="panel-section">
-                    <h3 className="section-title">Given</h3>
-                    <div className="statements-list">
-                        {givenItems.length === 0 && (
-                            <div className="statement-empty">No conditions yet</div>
-                        )}
-                        {givenItems.map((item, index) => (
-                            <div key={`given-${index}`} className="statement statement-given">
-                                <span>{item.text}</span>
-                                <button
-                                    className="statement-remove"
-                                    aria-label="Remove condition"
-                                    onClick={() => handleRemove(item)}
-                                >
-                                    ×
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-
-                    <AddStatement problem={problem} onAdd={onAdd} />
+                        <h3 className="section-title">Given</h3>
+                        <AddStatement problem={problem} onAdd={onAdd} />
+                        <div className="statements-list">
+                            {givenItems.length === 0 && (
+                                <div className="statement-empty">No conditions yet</div>
+                            )}
+                            {givenItems.map((item, index) => (
+                                <div key={`given-${index}`} className="statement statement-given">
+                                    <span>{item.text}</span>
+                                    <button
+                                        className="statement-remove"
+                                        aria-label="Remove condition"
+                                        onClick={() => handleRemove(item)}
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
                     </div>
 
                     <div className="panel-section">
@@ -99,9 +98,6 @@ export function Panel({problem, onSolve, conflicts, onAdd, onSetGoal}: PanelProp
 
                     <div className="panel-goal">
                         <h3 className="section-title">Goal</h3>
-                        {problem.goal !== null && (
-                            <div className="goal-display">{formatGoal(problem.goal)}</div>
-                        )}
                         <SetGoal problem={problem} onSet={onSetGoal} />
                         <button className="btn btn-primary" onClick={onSolve}>Solve</button>
                     </div>

@@ -24,7 +24,7 @@ export function Tools({ tool, setTool }: ToolsProps) {
       <button className={`tool-btn ${tool === "segment" ? "tool-active" : ""}`} onClick={() => setTool("segment")}>
         <SegmentIcon />
       </button>
-      <button className={`tool-btn ${tool === "ray" ? "tool-active" : ""}`} onClick={() => setTool("ray")} disabled>
+      <button className={`tool-btn ${tool === "ray" ? "tool-active" : ""}`} onClick={() => setTool("ray")}>
         <RayIcon />
       </button>
       <button className={`tool-btn ${tool === "line" ? "tool-active" : ""}`} onClick={() => setTool("line")}>

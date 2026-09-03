@@ -1,6 +1,6 @@
 import { Problem } from "../engine/problem";
 import { parseGoalInput } from "../engine/statements";
-import { formatGoal } from "../engine/format";
+import { formatGoal, formatGoalInput } from "../engine/format";
 import { StatementBox } from "./statementBox";
 
 interface SetGoalProps {
@@ -23,6 +23,7 @@ export function SetGoal({ problem, onSet }: SetGoalProps) {
                 placeholder="Object to find or statement to prove..."
                 preview={formatGoal}
                 dropUp
+                restingText={problem.goal !== null ? formatGoalInput(problem.goal) : ""}
             />
         </div>
     );

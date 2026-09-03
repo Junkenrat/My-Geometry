@@ -30,6 +30,9 @@ export interface Ray {
     readonly start: Point;
     readonly through: Point;
     readonly line: Line;
+    // "drawn" — луч построен пользователем и рисуется; "implicit" — служебный,
+    // созданный отрезком или углом.
+    kind: "drawn" | "implicit";
 }
 
 export interface Angle {

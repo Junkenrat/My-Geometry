@@ -18,17 +18,28 @@ interface StatementBoxProps<T> {
     preview?: (result: T) => string;
     // Раскрывать список вверх — для поля, прижатого к низу панели.
     dropUp?: boolean;
+    // Что показывать в покое, когда пользователь ничего не набирает: поле цели
+    // так показывает саму цель. Задано (пусть и пустой строкой) => поле работает
+    // как индикатор: фокус очищает его для нового ввода, потеря фокуса
+    // возвращает показ текущего значения.
+    restingText?: string;
 }
 
 // Усовершенствованный приемник новых фактов - через динамический ввод
 // и навигационный список на основе введенного. Один и тот же компонент
 // обслуживает и условия, и цель — различаются только parse/onCommit.
-export function StatementBox<T>({ parse, onCommit, placeholder, preview, dropUp }: StatementBoxProps<T>) {
-    const [text, setText] = useState("");
+export function StatementBox<T>({ parse, onCommit, placeholder, preview, dropUp, restingText }: StatementBoxProps<T>) {
+    // null = поле в покое, показываем restingText; строка = пользователь набирает.
+    const [draft, setDraft] = useState<string | null>(null);
     const [highlighted, setHighlighted] = useState(0);
     const [focused, setFocused] = useState(false);
 
-    const state = parse(text);
+    const isDisplay = restingText !== undefined;
+    const editing = draft !== null;
+    const text = editing ? draft : (restingText ?? "");
+    // В покое разбирать нечего: restingText — это уже готовый результат,
+    // а не выражение грамматики.
+    const state = parse(editing ? draft : "");
     const suggestions = state.suggestions;
     const active = Math.max(0, Math.min(highlighted, suggestions.length - 1));
     // "AB = " принимает и любое число, о чем сообщается в списке.
@@ -39,7 +50,7 @@ export function StatementBox<T>({ parse, onCommit, placeholder, preview, dropUp 
         const done = parse(inputText);
         if (done.result === null) return;
         onCommit(done.result);
-        setText("");
+        setDraft(null);
         setHighlighted(0);
     }
 
@@ -51,7 +62,7 @@ export function StatementBox<T>({ parse, onCommit, placeholder, preview, dropUp 
             commit(suggestion.apply);
             return;
         }
-        setText(suggestion.apply);
+        setDraft(suggestion.apply);
         setHighlighted(0);
     }
 
@@ -83,10 +94,10 @@ export function StatementBox<T>({ parse, onCommit, placeholder, preview, dropUp 
                 className={`input ${state.error !== null ? "statement-input-error" : ""}`}
                 value={text}
                 placeholder={placeholder}
-                onChange={(e) => { setText(e.target.value); setHighlighted(0); }}
+                onChange={(e) => { setDraft(e.target.value); setHighlighted(0); }}
                 onKeyDown={handleKeyDown}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
+                onFocus={() => { setFocused(true); if (!editing) setDraft(""); }}
+                onBlur={() => { setFocused(false); if (isDisplay) setDraft(null); }}
             />
             {state.result !== null && (
                 <span className="statement-ready" aria-hidden="true">↵</span>
