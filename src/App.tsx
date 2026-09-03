@@ -10,6 +10,7 @@ import { NameDialog } from "./components/nameDialog";
 import { Actions } from "./components/actions";
 import "./App.css";
 import { validate } from "./engine/validate";
+import { segmentsCross } from "./engine/geometry";
 
 const GRID = 30;
 const LINE_GRID_RADIUS = 8;
@@ -63,14 +64,25 @@ type Interaction =
   // asked one after another once the figure is placed. "returnTo" is where
   // the engine goes after the last dialog
   | { mode: "naming"; point: Point }
-  | { mode: "naming_queue"; queue: NamingTask[]; returnTo: "segment_start" | "line_start" | "ray_start" }
+  | { mode: "naming_queue"; queue: NamingTask[]; returnTo: "segment_start" | "line_start" | "ray_start" | "triangle_p1" | "quad_p1" }
   | { mode: "line_start" }
   | { mode: "line_end"; first: Point; created: boolean }
   // Луч строится как прямая, но первый клик задаёт начало, а не просто точку на ней.
   | { mode: "ray_start" }
-  | { mode: "ray_end"; first: Point; created: boolean };
+  | { mode: "ray_end"; first: Point; created: boolean }
+  // Треугольник строится тремя кликами. "created" накапливает только те
+  // вершины, что созданы под этот треугольник, — их и удаляем при отмене.
+  | { mode: "triangle_p1" }
+  | { mode: "triangle_p2"; p1: Point; created: Point[] }
+  | { mode: "triangle_p3"; p1: Point; p2: Point; created: Point[] }
+  // Четырёхугольник — четыре клика, замкнутый контур из отрезков. Отдельного
+  // объекта в движке нет (теорем про quad пока нет), только четыре стороны.
+  | { mode: "quad_p1" }
+  | { mode: "quad_p2"; p1: Point; created: Point[] }
+  | { mode: "quad_p3"; p1: Point; p2: Point; created: Point[] }
+  | { mode: "quad_p4"; p1: Point; p2: Point; p3: Point; created: Point[] };
 
-type Tool = "point" | "segment" | "cursor" | "line" | "ray";
+type Tool = "point" | "segment" | "cursor" | "line" | "ray" | "triangle" | "quad";
 
 // The active tool is derived from the interaction state, not stored separately.
 function toolOf(interaction: Interaction): Tool {
@@ -84,6 +96,8 @@ function toolOf(interaction: Interaction): Tool {
     case "naming_queue":
       if (interaction.returnTo === "line_start") return "line";
       if (interaction.returnTo === "ray_start") return "ray";
+      if (interaction.returnTo === "triangle_p1") return "triangle";
+      if (interaction.returnTo === "quad_p1") return "quad";
       return "segment";
     case "idle":
       return "cursor";
@@ -93,7 +107,22 @@ function toolOf(interaction: Interaction): Tool {
     case "ray_start":
     case "ray_end":
       return "ray";
+    case "triangle_p1":
+    case "triangle_p2":
+    case "triangle_p3":
+      return "triangle";
+    case "quad_p1":
+    case "quad_p2":
+    case "quad_p3":
+    case "quad_p4":
+      return "quad";
   }
+}
+
+// Три точки на одной прямой (нулевая площадь) — вырожденная вершина.
+function collinear(a: Point, b: Point, c: Point): boolean {
+  const area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  return Math.abs(area) < 1e-6;
 }
 
 function findPointAt(x: number, y: number, hitRadius: number, problem: Problem): Point | null {
@@ -216,6 +245,10 @@ function App() {
       setInteraction({ mode: "line_start"})
     } else if (t === "ray") {
       setInteraction({ mode: "ray_start"})
+    } else if (t === "triangle") {
+      setInteraction({ mode: "triangle_p1" })
+    } else if (t === "quad") {
+      setInteraction({ mode: "quad_p1" })
     } else  {
       setInteraction({ mode: "idle" });
     }
@@ -350,6 +383,112 @@ function App() {
         setVersion(v => v + 1);
         return;
       }
+      case "triangle_p1": {
+        const existing = findPointAt(snappedX, snappedY, 7, problem);
+        const p1 = existing ?? problem.addPoint(snappedX, snappedY);
+        setInteraction({ mode: "triangle_p2", p1, created: existing === null ? [p1] : [] });
+        setVersion(v => v + 1);
+        return;
+      }
+      case "triangle_p2": {
+        const existing = findPointAt(snappedX, snappedY, 7, problem);
+        if (existing === interaction.p1) return;
+        const p2 = existing ?? problem.addPoint(snappedX, snappedY);
+        const created = existing === null ? [...interaction.created, p2] : interaction.created;
+        setInteraction({ mode: "triangle_p3", p1: interaction.p1, p2, created });
+        setVersion(v => v + 1);
+        return;
+      }
+      case "triangle_p3": {
+        const existing = findPointAt(snappedX, snappedY, 7, problem);
+        if (existing === interaction.p1 || existing === interaction.p2) return;
+        const p3 = existing ?? problem.addPoint(snappedX, snappedY);
+        const { p1, p2 } = interaction;
+        // Три коллинеарные вершины дают вырожденный треугольник — отклоняем.
+        if (collinear(p1, p2, p3)) {
+          if (existing === null) problem.removePoint(p3.id); // убираем только что созданную
+          setVersion(v => v + 1);
+          return;
+        }
+        problem.addTriangle(p1.id, p2.id, p3.id);
+        const queue: NamingTask[] = [];
+        if (p1.label === null) queue.push(pointNamingTask(p1, "Name the first vertex"));
+        if (p2.label === null) queue.push(pointNamingTask(p2, "Name the second vertex"));
+        if (p3.label === null) queue.push(pointNamingTask(p3, "Name the third vertex"));
+        if (queue.length > 0) {
+          setInteraction({ mode: "naming_queue", queue, returnTo: "triangle_p1" });
+        } else {
+          setInteraction({ mode: "triangle_p1" });
+        }
+        setVersion(v => v + 1);
+        return;
+      }
+      case "quad_p1": {
+        const existing = findPointAt(snappedX, snappedY, 7, problem);
+        const p1 = existing ?? problem.addPoint(snappedX, snappedY);
+        setInteraction({ mode: "quad_p2", p1, created: existing === null ? [p1] : [] });
+        setVersion(v => v + 1);
+        return;
+      }
+      case "quad_p2": {
+        const existing = findPointAt(snappedX, snappedY, 7, problem);
+        if (existing === interaction.p1) return;
+        const p2 = existing ?? problem.addPoint(snappedX, snappedY);
+        const created = existing === null ? [...interaction.created, p2] : interaction.created;
+        setInteraction({ mode: "quad_p3", p1: interaction.p1, p2, created });
+        setVersion(v => v + 1);
+        return;
+      }
+      case "quad_p3": {
+        const existing = findPointAt(snappedX, snappedY, 7, problem);
+        if (existing === interaction.p1 || existing === interaction.p2) return;
+        const p3 = existing ?? problem.addPoint(snappedX, snappedY);
+        // Первые три вершины не должны лежать на одной прямой.
+        if (collinear(interaction.p1, interaction.p2, p3)) {
+          if (existing === null) problem.removePoint(p3.id);
+          setVersion(v => v + 1);
+          return;
+        }
+        const created = existing === null ? [...interaction.created, p3] : interaction.created;
+        setInteraction({ mode: "quad_p4", p1: interaction.p1, p2: interaction.p2, p3, created });
+        setVersion(v => v + 1);
+        return;
+      }
+      case "quad_p4": {
+        const existing = findPointAt(snappedX, snappedY, 7, problem);
+        if (existing === interaction.p1 || existing === interaction.p2 || existing === interaction.p3) return;
+        const p4 = existing ?? problem.addPoint(snappedX, snappedY);
+        const { p1, p2, p3 } = interaction;
+        // Ни одна вершина замкнутого контура не должна оказаться на прямой
+        // своих соседей (тройки, включающие новую вершину), и противоположные
+        // стороны не должны пересекаться — иначе выходит «бабочка».
+        const degenerate = collinear(p2, p3, p4) || collinear(p3, p4, p1) || collinear(p4, p1, p2);
+        const selfCrossing = segmentsCross(p1, p2, p3, p4) || segmentsCross(p2, p3, p4, p1);
+        if (degenerate || selfCrossing) {
+          if (existing === null) problem.removePoint(p4.id);
+          setVersion(v => v + 1);
+          return;
+        }
+        // Четыре стороны контура; отдельного quad-объекта в движке нет.
+        problem.addSegment(p1.id, p2.id);
+        problem.addSegment(p2.id, p3.id);
+        problem.addSegment(p3.id, p4.id);
+        problem.addSegment(p4.id, p1.id);
+        const queue: NamingTask[] = [];
+        const vertices = [p1, p2, p3, p4];
+        const titles = ["Name the first vertex", "Name the second vertex",
+          "Name the third vertex", "Name the fourth vertex"];
+        vertices.forEach((v, i) => {
+          if (v.label === null) queue.push(pointNamingTask(v, titles[i]!));
+        });
+        if (queue.length > 0) {
+          setInteraction({ mode: "naming_queue", queue, returnTo: "quad_p1" });
+        } else {
+          setInteraction({ mode: "quad_p1" });
+        }
+        setVersion(v => v + 1);
+        return;
+      }
       case "naming":
       case "naming_queue":
         // Canvas is inert while the dialog is open.
@@ -384,6 +523,11 @@ function App() {
       (interaction.mode === "ray_end" && interaction.created)
     ) {
       problem.removePoint(interaction.first.id);
+    } else if (interaction.mode === "triangle_p2" || interaction.mode === "triangle_p3"
+      || interaction.mode === "quad_p2" || interaction.mode === "quad_p3" || interaction.mode === "quad_p4") {
+      // Вершины ещё не связаны отрезками (фигура создаётся на последнем клике),
+      // поэтому они не «referenced» и удаляются свободно.
+      for (const p of interaction.created) problem.removePoint(p.id);
     }
   }
 
@@ -395,6 +539,12 @@ function App() {
       if (interaction.mode === "segment_end") setInteraction({ mode: "segment_start"});
       if (interaction.mode === "line_end") setInteraction({ mode: "line_start"});
       if (interaction.mode === "ray_end") setInteraction({ mode: "ray_start"});
+    } else if (interaction.mode === "triangle_p2" || interaction.mode === "triangle_p3") {
+      for (const p of interaction.created) problem.removePoint(p.id);
+      setInteraction({ mode: "triangle_p1" });
+    } else if (interaction.mode === "quad_p2" || interaction.mode === "quad_p3" || interaction.mode === "quad_p4") {
+      for (const p of interaction.created) problem.removePoint(p.id);
+      setInteraction({ mode: "quad_p1" });
     } else {
       setInteraction({ mode: "idle" });
     }
@@ -451,6 +601,20 @@ function App() {
         return "Select or create the starting point of the ray";
       case "ray_end":
         return "Select or create a second point the ray passes through";
+      case "triangle_p1":
+        return "Select or create the first vertex of the triangle";
+      case "triangle_p2":
+        return "Select or create the second vertex";
+      case "triangle_p3":
+        return "Select or create the third vertex";
+      case "quad_p1":
+        return "Select or create the first vertex of the quadrilateral";
+      case "quad_p2":
+        return "Select or create the second vertex";
+      case "quad_p3":
+        return "Select or create the third vertex";
+      case "quad_p4":
+        return "Select or create the fourth vertex";
       case "naming":
       case "naming_queue":
         return null; // the dialog is the hint
@@ -473,6 +637,16 @@ function App() {
         panning={panning}
         firstPoint={interaction.mode === "segment_end" || interaction.mode === "line_end"
           || interaction.mode === "ray_end" ? interaction.first : null}
+        previewVertices={
+          interaction.mode === "triangle_p2" ? [interaction.p1]
+          : interaction.mode === "triangle_p3" ? [interaction.p1, interaction.p2]
+          : interaction.mode === "quad_p2" ? [interaction.p1]
+          : interaction.mode === "quad_p3" ? [interaction.p1, interaction.p2]
+          : interaction.mode === "quad_p4" ? [interaction.p1, interaction.p2, interaction.p3]
+          : []
+        }
+        // Замкнуть контур с текущей точкой — на последнем шаге фигуры.
+        previewClose={interaction.mode === "triangle_p3" || interaction.mode === "quad_p4"}
         curSnapped={curSnapped}
         Tool={tool}
       />

@@ -8,7 +8,7 @@ import CircleIcon from "../assets/icons/Circle.svg?react";
 import CursorIcon from "../assets/icons/Cursor.svg?react";
 import MoveIcon from "../assets/icons/Move.svg?react";
 
-type Tool = "point" | "segment" | "ray" | "cursor" | "line";
+type Tool = "point" | "segment" | "ray" | "cursor" | "line" | "triangle" | "quad";
 
 interface ToolsProps {
   tool: Tool;
@@ -33,10 +33,10 @@ export function Tools({ tool, setTool }: ToolsProps) {
       
       <div className="tool-divider" />
       
-      <button className="tool-btn" disabled>
+      <button className={`tool-btn ${tool === "triangle" ? "tool-active" : ""}`} onClick={() => setTool("triangle")}>
         <TriangleIcon />
       </button>
-      <button className="tool-btn" disabled>
+      <button className={`tool-btn ${tool === "quad" ? "tool-active" : ""}`} onClick={() => setTool("quad")}>
         <QuadIcon />
       </button>
       <button className="tool-btn" disabled>

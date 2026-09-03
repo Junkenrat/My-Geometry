@@ -9,13 +9,15 @@ interface CanvasProps {
     onMouseLeave: () => void;
     onMouseDown: (e: React.MouseEvent<SVGSVGElement>) => void;
     onMouseUp: () => void;
-    // Сдвиг чертежа при перетаскивании (режим курсора). Экранные координаты
-    // получаются из координат задачи прибавлением view.
     view: { x: number; y: number };
     panning: boolean;
     firstPoint: Point | null;
+    // Уже поставленные вершины строящейся фигуры (треугольник/четырёхугольник).
+    previewVertices: Point[];
+    // Замыкать ли контур ребром от текущей точки к первой вершине.
+    previewClose: boolean;
     curSnapped: { x: number; y: number; kind: "grid" | "existingPoint" | "line" } | null;
-    Tool: "point" | "segment" | "ray" | "cursor" | "line";
+    Tool: "point" | "segment" | "ray" | "cursor" | "line" | "triangle" | "quad";
 }
 
 // Продлевает прямые с kind = "drawn" за пределы холста
@@ -45,7 +47,7 @@ const getExtendedCoordinates = (
 };
 
 export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDown, onMouseUp,
-                        view, panning, firstPoint, curSnapped, Tool }: CanvasProps) {
+                        view, panning, firstPoint, previewVertices, previewClose, curSnapped, Tool }: CanvasProps) {
     return (
         <svg
             className={`canvas ${Tool === "cursor" ? (panning ? "canvas-panning" : "canvas-pannable") : ""}`}
@@ -86,7 +88,7 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDow
                                 stroke="#6B5C39"
                                 strokeWidth={1.5}
                             />
-                            {(Tool === "point" || Tool === "segment" || Tool === "line" || Tool === "ray") && (
+                            {(Tool === "point" || Tool === "segment" || Tool === "line" || Tool === "ray" || Tool === "triangle" || Tool === "quad") && (
                                 <line
                                     x1={extended.x1}
                                     y1={extended.y1}
@@ -101,8 +103,6 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDow
                     );
                 })}
 
-            {/* Лучи: сплошная часть до крайней точки, дальше — бледное
-                продолжение только вперёд (назад луч не идёт) */}
             {Array.from(problem.rays.values())
                 .filter((ray) => ray.kind === "drawn")
                 .map((ray) => {
@@ -121,7 +121,7 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDow
                                 stroke="#6B5C39"
                                 strokeWidth={1.5}
                             />
-                            {(Tool === "point" || Tool === "segment" || Tool === "line" || Tool === "ray") && (
+                            {(Tool === "point" || Tool === "segment" || Tool === "line" || Tool === "ray" || Tool === "triangle" || Tool === "quad") && (
                                 <line
                                     x1={stroke.x2}
                                     y1={stroke.y2}
@@ -172,10 +172,7 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDow
                     </text>
                 ))}
 
-            {curSnapped !== null && (Tool === "point" || Tool === "segment" || Tool === "line" || Tool === "ray") && (() => {
-                // Инструменту "точка" существующая точка мешает: новую туда не
-                // поставить, поэтому призрак краснеет. Остальным инструментам
-                // такая привязка, наоборот, нужна — им она зелёная.
+            {curSnapped !== null && (Tool === "point" || Tool === "segment" || Tool === "line" || Tool === "ray" || Tool === "triangle" || Tool === "quad") && (() => {
                 const blocked = Tool === "point" && curSnapped.kind === "existingPoint";
                 return (
                     <circle
@@ -234,6 +231,19 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDow
                         opacity={0.18}
                     />
                 );
+            })()}
+            {/* предпросмотр фигуры: рёбра между поставленными вершинами и от
+                последней к текущей точке; на последнем шаге контур замыкается */}
+            {curSnapped !== null && (Tool === "triangle" || Tool === "quad") && previewVertices.length > 0 && (() => {
+                const pts = [...previewVertices, curSnapped];
+                const edges: [{ x: number; y: number }, { x: number; y: number }][] = [];
+                for (let i = 0; i < pts.length - 1; i++) edges.push([pts[i]!, pts[i + 1]!]);
+                if (previewClose) edges.push([pts[pts.length - 1]!, pts[0]!]);
+                return edges.map((e, i) => (
+                    <line key={`poly-preview-${i}`}
+                        x1={e[0].x} y1={e[0].y} x2={e[1].x} y2={e[1].y}
+                        stroke="gray" strokeWidth={2} opacity={0.18} />
+                ));
             })()}
             </g>
         </svg>
