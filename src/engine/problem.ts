@@ -1,4 +1,4 @@
-import type { Point, Line, Ray, Segment, Angle, Triangle } from "./types";
+import type { Point, Line, Ray, Segment, Angle, Triangle, Circle } from "./types";
 import { pointName } from "./types";
 import type { Fact, GivenValue, Goal, Reason } from "./facts";
 import { factsEqual } from "./facts";
@@ -17,6 +17,7 @@ export class Problem {
     rays: Map<string, Ray> = new Map();
     angles: Map<string, Angle> = new Map();
     triangles: Map<string, Triangle> = new Map();
+    circles: Map<string, Circle> = new Map();
     facts: Fact[] = [];
     relations: Map<string, Relation> = new Map();
     quantities: QuantityStore = new QuantityStore();
@@ -24,6 +25,7 @@ export class Problem {
     goal: Goal | null = null;
     private nextPointNumber = 0;
     private nextLineNumber = 0;
+    private nextCircleNumber = 0;
 
     // Все аргументы add/get через id точек
 
@@ -75,6 +77,7 @@ export class Problem {
             || Array.from(this.rays.values()).some(r => r.start === point || r.through === point)
             || Array.from(this.segments.values()).some(s => s.p1 === point || s.p2 === point)
             || Array.from(this.triangles.values()).some(t => t.p1 === point || t.p2 === point || t.p3 === point)
+            || Array.from(this.circles.values()).some(c => c.center === point || c.through === point)
             || this.facts.some(f =>
                 (f.kind === "between" && (f.point === point || f.from === point || f.to === point))
                 || (f.kind === "right_triangle" && f.rightAngleAt === point));
@@ -221,6 +224,25 @@ export class Problem {
         }
         this.triangles.set(key, newTriangle);
         return newTriangle;
+    }
+
+    // A circle through `thr` centred at `center`. Keyed by the ordered pair, so
+    // the same centre + through-point returns the existing circle.
+    addCircle(center: string, thr: string): Circle {
+        const key = `${center}>${thr}`;
+        const existing = this.circles.get(key);
+        if (existing !== undefined) {
+            return existing;
+        }
+        const id = `c${this.nextCircleNumber}`;
+        this.nextCircleNumber += 1;
+        const newCircle: Circle = {
+            id,
+            center: this.requirePoint(center),
+            through: this.requirePoint(thr),
+        };
+        this.circles.set(key, newCircle);
+        return newCircle;
     }
 
     addFact(fact: Fact): void {
@@ -383,6 +405,7 @@ export class Problem {
         this.rays.clear();
         this.angles.clear();
         this.triangles.clear();
+        this.circles.clear();
         this.facts = [];
         this.relations.clear();
         this.quantities = new QuantityStore();
@@ -390,6 +413,7 @@ export class Problem {
         this.goal = null;
         this.nextPointNumber = 0;
         this.nextLineNumber = 0;
+        this.nextCircleNumber = 0;
     }
 
     setGoal(goal: Goal | null): void {

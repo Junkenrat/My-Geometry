@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { segmentsCross } from "../geometry";
+import { segmentsCross, circleLineIntersections, circleCircleIntersections } from "../geometry";
 import type { Point } from "../types";
 
 // Only the coordinates matter here; ids/labels are filler.
@@ -35,5 +35,53 @@ describe("segmentsCross", () => {
     it("false when the crossing lies outside both segments", () => {
         // Lines would meet, but only past the endpoints.
         expect(segmentsCross(pt(0, 0), pt(1, 1), pt(5, 0), pt(6, 1))).toBe(false);
+    });
+});
+
+// helper to compare unordered point lists up to rounding
+function coords(vs: { x: number; y: number }[]): string[] {
+    return vs.map(v => `${Math.round(v.x)},${Math.round(v.y)}`).sort();
+}
+
+describe("circleLineIntersections", () => {
+    const c = { x: 0, y: 0 };
+    it("a horizontal line through the center crosses at ±r", () => {
+        const hits = circleLineIntersections(c, 10, { x: -20, y: 0 }, { x: 20, y: 0 }, -Infinity, Infinity);
+        expect(coords(hits)).toEqual(["-10,0", "10,0"]);
+    });
+
+    it("a segment restricts to its own span", () => {
+        // Segment from center outward crosses the arc once, at (10,0).
+        const hits = circleLineIntersections(c, 10, { x: 0, y: 0 }, { x: 20, y: 0 }, 0, 1);
+        expect(coords(hits)).toEqual(["10,0"]);
+    });
+
+    it("a tangent line touches once", () => {
+        const hits = circleLineIntersections(c, 10, { x: -20, y: 10 }, { x: 20, y: 10 }, -Infinity, Infinity);
+        expect(coords(hits)).toEqual(["0,10"]);
+    });
+
+    it("a line that misses returns nothing", () => {
+        expect(circleLineIntersections(c, 10, { x: -20, y: 15 }, { x: 20, y: 15 }, -Infinity, Infinity)).toEqual([]);
+    });
+});
+
+describe("circleCircleIntersections", () => {
+    it("two overlapping circles cross at two points", () => {
+        const hits = circleCircleIntersections({ x: 0, y: 0 }, 10, { x: 16, y: 0 }, 10);
+        expect(coords(hits)).toEqual(["8,-6", "8,6"]);
+    });
+
+    it("externally tangent circles touch at one point", () => {
+        const hits = circleCircleIntersections({ x: 0, y: 0 }, 10, { x: 20, y: 0 }, 10);
+        expect(coords(hits)).toEqual(["10,0"]);
+    });
+
+    it("far-apart circles do not meet", () => {
+        expect(circleCircleIntersections({ x: 0, y: 0 }, 10, { x: 100, y: 0 }, 10)).toEqual([]);
+    });
+
+    it("concentric circles do not meet", () => {
+        expect(circleCircleIntersections({ x: 0, y: 0 }, 10, { x: 0, y: 0 }, 5)).toEqual([]);
     });
 });

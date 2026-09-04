@@ -10,7 +10,8 @@ import { NameDialog } from "./components/nameDialog";
 import { Actions } from "./components/actions";
 import "./App.css";
 import { validate } from "./engine/validate";
-import { segmentsCross } from "./engine/geometry";
+import { segmentsCross, circleLineIntersections, circleCircleIntersections } from "./engine/geometry";
+import type { Vec } from "./engine/geometry";
 
 const GRID = 30;
 const LINE_GRID_RADIUS = 8;
@@ -64,7 +65,7 @@ type Interaction =
   // asked one after another once the figure is placed. "returnTo" is where
   // the engine goes after the last dialog
   | { mode: "naming"; point: Point }
-  | { mode: "naming_queue"; queue: NamingTask[]; returnTo: "segment_start" | "line_start" | "ray_start" | "triangle_p1" | "quad_p1" }
+  | { mode: "naming_queue"; queue: NamingTask[]; returnTo: "segment_start" | "line_start" | "ray_start" | "triangle_p1" | "quad_p1" | "circle_center" }
   | { mode: "line_start" }
   | { mode: "line_end"; first: Point; created: boolean }
   // Луч строится как прямая, но первый клик задаёт начало, а не просто точку на ней.
@@ -80,9 +81,13 @@ type Interaction =
   | { mode: "quad_p1" }
   | { mode: "quad_p2"; p1: Point; created: Point[] }
   | { mode: "quad_p3"; p1: Point; p2: Point; created: Point[] }
-  | { mode: "quad_p4"; p1: Point; p2: Point; p3: Point; created: Point[] };
+  | { mode: "quad_p4"; p1: Point; p2: Point; p3: Point; created: Point[] }
+  // Окружность — два клика: центр, затем точка на окружности (задаёт радиус).
+  // Сама окружность имени не требует; именуются только две точки.
+  | { mode: "circle_center" }
+  | { mode: "circle_through"; center: Point; created: boolean };
 
-type Tool = "point" | "segment" | "cursor" | "line" | "ray" | "triangle" | "quad";
+type Tool = "point" | "segment" | "cursor" | "line" | "ray" | "triangle" | "quad" | "circle";
 
 // The active tool is derived from the interaction state, not stored separately.
 function toolOf(interaction: Interaction): Tool {
@@ -98,6 +103,7 @@ function toolOf(interaction: Interaction): Tool {
       if (interaction.returnTo === "ray_start") return "ray";
       if (interaction.returnTo === "triangle_p1") return "triangle";
       if (interaction.returnTo === "quad_p1") return "quad";
+      if (interaction.returnTo === "circle_center") return "circle";
       return "segment";
     case "idle":
       return "cursor";
@@ -116,6 +122,9 @@ function toolOf(interaction: Interaction): Tool {
     case "quad_p3":
     case "quad_p4":
       return "quad";
+    case "circle_center":
+    case "circle_through":
+      return "circle";
   }
 }
 
@@ -189,15 +198,148 @@ function findLineAt(x: number, y:number, hitRadius: number, problem: Problem): {
     : { x: best.qx, y: best.qy, kind: "line" };
 }
 
+// Ближайшая точка на дуге окружности: проекция курсора на окружность по лучу
+// из центра. Позволяет ставить точки прямо на окружности (вписать фигуру).
+function findCircleAt(x: number, y: number, hitRadius: number, problem: Problem): {x: number, y: number, kind: "line"} | null {
+  let best: { x: number; y: number } | null = null;
+  let minDist = hitRadius;
+  for (const c of problem.circles.values()) {
+    const dx = x - c.center.x, dy = y - c.center.y;
+    const d = Math.hypot(dx, dy);
+    if (d === 0) continue; // ровно в центре — направление на дугу не определено
+    const r = Math.hypot(c.through.x - c.center.x, c.through.y - c.center.y);
+    const dist = Math.abs(d - r); // отклонение курсора от окружности
+    if (dist < minDist) {
+      minDist = dist;
+      best = { x: c.center.x + (dx / d) * r, y: c.center.y + (dy / d) * r };
+    }
+  }
+  return best === null ? null : { x: best.x, y: best.y, kind: "line" };
+}
+
+// Все точки пересечения окружностей с линиями/отрезками/лучами и друг с другом —
+// «узловые» точки построений. Считаются на лету при каждом движении курсора.
+function circleIntersections(problem: Problem): Vec[] {
+  const result: Vec[] = [];
+  const circles = Array.from(problem.circles.values());
+  const radius = (c: { center: Point; through: Point }) =>
+    Math.hypot(c.through.x - c.center.x, c.through.y - c.center.y);
+  for (const c of circles) {
+    const r = radius(c);
+    for (const seg of problem.segments.values()) {
+      result.push(...circleLineIntersections(c.center, r, seg.p1, seg.p2, 0, 1));
+    }
+    for (const line of problem.lines.values()) {
+      if (line.kind === "drawn") result.push(...circleLineIntersections(c.center, r, line.p1, line.p2, -Infinity, Infinity));
+    }
+    for (const ray of problem.rays.values()) {
+      if (ray.kind === "drawn") result.push(...circleLineIntersections(c.center, r, ray.start, ray.through, 0, Infinity));
+    }
+  }
+  for (let i = 0; i < circles.length; i++) {
+    for (let j = i + 1; j < circles.length; j++) {
+      const a = circles[i]!, b = circles[j]!;
+      result.push(...circleCircleIntersections(a.center, radius(a), b.center, radius(b)));
+    }
+  }
+  return result;
+}
+
+function findIntersectionAt(x: number, y: number, hitRadius: number, problem: Problem): {x: number, y: number, kind: "line"} | null {
+  let best: Vec | null = null;
+  let minDist = hitRadius;
+  for (const p of circleIntersections(problem)) {
+    const dist = Math.hypot(x - p.x, y - p.y);
+    if (dist < minDist) {
+      minDist = dist;
+      best = p;
+    }
+  }
+  return best === null ? null : { x: best.x, y: best.y, kind: "line" };
+}
+
 function snapPosition(x: number, y: number, problem: Problem): {x: number, y: number, kind: "existingPoint" | "grid" | "line"} {
   // 1st priority: near point
-  const existingPoint = findPointAt(x, y, 15, problem); 
+  const existingPoint = findPointAt(x, y, 15, problem);
   if (existingPoint !== null) return { x: existingPoint.x, y: existingPoint.y, kind: "existingPoint"}
-  // 2nd priority: near segment or line
-  const pointOnTheNearestLine = findLineAt(x, y, 12, problem); 
-  if (pointOnTheNearestLine !== null) return pointOnTheNearestLine;
+  // 2nd priority: an intersection of circles/lines — a precise construction node
+  const onIntersection = findIntersectionAt(x, y, 10, problem);
+  if (onIntersection !== null) return onIntersection;
+  // 3rd priority: near a drawn line/segment/ray or a circle — pick the closer
+  const onLine = findLineAt(x, y, 12, problem);
+  const onCircle = findCircleAt(x, y, 12, problem);
+  if (onLine !== null && onCircle !== null) {
+    const dl = Math.hypot(x - onLine.x, y - onLine.y);
+    const dc = Math.hypot(x - onCircle.x, y - onCircle.y);
+    return dl <= dc ? onLine : onCircle;
+  }
+  if (onLine !== null) return onLine;
+  if (onCircle !== null) return onCircle;
   // last priority: grid
-  return { x: Math.round(x / GRID) * GRID, y: Math.round(y / GRID) * GRID, kind: "grid" } 
+  return { x: Math.round(x / GRID) * GRID, y: Math.round(y / GRID) * GRID, kind: "grid" }
+}
+
+const TOUCH_RADIUS = 8;
+
+// Результат «касания»: подправленный конец плюс через что привязались —
+// существующую точку (её подсвечиваем) или касание окружности (точку касания
+// создаём при фиксации).
+type Touch =
+  | { endpoint: Vec; via: "point"; point: Point }
+  | { endpoint: Vec; via: "tangent"; tangentPoint: Vec };
+
+// «Касание»: при построении отрезка/прямой/луча из anchor к курсору докручиваем
+// направление, если луч проходит рядом с точкой (пройдёт через неё) или почти
+// касается окружности (станет касательной). Длину перетаскивания сохраняем —
+// меняется только угол.
+function applyTouch(anchor: Point, cx: number, cy: number, problem: Problem): Touch | null {
+  const ax = anchor.x, ay = anchor.y;
+  const acx = cx - ax, acy = cy - ay;
+  const acLen = Math.hypot(acx, acy);
+  if (acLen < 1e-6) return null;
+  const ux = acx / acLen, uy = acy / acLen; // единичное направление прицела
+  let best: Touch | null = null;
+  let bestPerp = TOUCH_RADIUS;
+
+  // Проходит через точку: перпендикулярное расстояние точки от луча мало.
+  for (const p of problem.points.values()) {
+    if (p === anchor) continue;
+    const px = p.x - ax, py = p.y - ay;
+    if (px * ux + py * uy <= 0) continue; // точка позади прицела
+    const perp = Math.abs(px * uy - py * ux); // |крест| = расстояние до луча
+    const len = Math.hypot(px, py);
+    if (perp < bestPerp && len > 1e-6) {
+      bestPerp = perp;
+      best = { endpoint: { x: ax + (acLen * px) / len, y: ay + (acLen * py) / len }, via: "point", point: p };
+    }
+  }
+
+  // Касается окружности: направление совпадает с одной из двух касательных из anchor.
+  for (const c of problem.circles.values()) {
+    const r = Math.hypot(c.through.x - c.center.x, c.through.y - c.center.y);
+    const ox = c.center.x - ax, oy = c.center.y - ay;
+    const d = Math.hypot(ox, oy);
+    if (d <= r + 1e-6) continue; // anchor внутри/на окружности — касательной нет
+    const alpha = Math.asin(r / d);       // полуугол между направлением на центр и касательной
+    const phi = Math.atan2(oy, ox);
+    const theta = Math.atan2(acy, acx);
+    for (const tau of [phi + alpha, phi - alpha]) {
+      const diff = Math.atan2(Math.sin(theta - tau), Math.cos(theta - tau));
+      const perp = Math.abs(acLen * Math.sin(diff));
+      if (perp < bestPerp) {
+        bestPerp = perp;
+        const dirX = Math.cos(tau), dirY = Math.sin(tau);
+        // точка касания = проекция центра на касательную прямую (лежит на окружности)
+        const proj = ox * dirX + oy * dirY;
+        best = {
+          endpoint: { x: ax + acLen * dirX, y: ay + acLen * dirY },
+          via: "tangent",
+          tangentPoint: { x: ax + proj * dirX, y: ay + proj * dirY },
+        };
+      }
+    }
+  }
+  return best;
 }
 
 function App() {
@@ -214,6 +356,9 @@ function App() {
   }, [problem]);
   const [, setVersion] = useState(0);
   const [curSnapped, setSnapped] = useState<{x: number, y: number, kind: "grid" | "existingPoint" | "line"} | null>(null);
+  // Активное «касание» под курсором — для зелёной подсветки точки прохождения
+  // или призрака точки касания.
+  const [touch, setTouch] = useState<Touch | null>(null);
   // Сдвиг чертежа относительно экрана: чертёж таскается мышью в режиме курсора,
   // как карта. Координаты задачи не меняются — двигается только вид.
   const [view, setView] = useState({ x: 0, y: 0 });
@@ -235,6 +380,15 @@ function App() {
     };
   }
 
+  // При фиксации касательной к окружности материализуем точку касания (если её
+  // ещё нет) и ставим в очередь именования — она будет мигать, пока не названа.
+  function tangentNamingTask(t: Touch | null): NamingTask | null {
+    if (t === null || t.via !== "tangent") return null;
+    const existing = findPointAt(t.tangentPoint.x, t.tangentPoint.y, 3, problem);
+    const point = existing ?? problem.addPoint(t.tangentPoint.x, t.tangentPoint.y);
+    return point.label === null ? pointNamingTask(point, "Name the point of tangency") : null;
+  }
+
   function handleToolChange(t: Tool) {
     discardPendingPoint();
     if (t === "point") {
@@ -249,6 +403,8 @@ function App() {
       setInteraction({ mode: "triangle_p1" })
     } else if (t === "quad") {
       setInteraction({ mode: "quad_p1" })
+    } else if (t === "circle") {
+      setInteraction({ mode: "circle_center" })
     } else  {
       setInteraction({ mode: "idle" });
     }
@@ -273,6 +429,20 @@ function App() {
     setPanning(false);
   }
 
+  // Привязка курсора с учётом текущего инструмента: при построении отрезка,
+  // прямой или луча к обычным привязкам добавляется «касание» (прилипание к
+  // точке/окружности), но только когда конец висит в пустоте (база — сетка).
+  function snapAt(x: number, y: number): {x: number, y: number, kind: "existingPoint" | "grid" | "line", touch: Touch | null} {
+    const base = snapPosition(x, y, problem);
+    const anchor = interaction.mode === "segment_end" || interaction.mode === "line_end"
+      || interaction.mode === "ray_end" ? interaction.first : null;
+    if (base.kind === "grid" && anchor !== null) {
+      const touched = applyTouch(anchor, x, y, problem);
+      if (touched !== null) return { x: touched.endpoint.x, y: touched.endpoint.y, kind: "line", touch: touched };
+    }
+    return { ...base, touch: null };
+  }
+
   function handleMove(e: React.MouseEvent<SVGSVGElement>) {
     const from = panFrom.current;
     if (from !== null) {
@@ -280,19 +450,22 @@ function App() {
       return;
     }
     const { x, y } = worldCoords(e);
-    setSnapped(snapPosition(x, y, problem));
+    const s = snapAt(x, y);
+    setSnapped({ x: s.x, y: s.y, kind: s.kind });
+    setTouch(s.touch);
   }
 
   function handleMouseLeave() {
     handleMouseUp();
     setSnapped(null);
+    setTouch(null);
   }
 
   function handleClick(e: React.MouseEvent<SVGSVGElement>) {
     // Пока висит вопрос о стирании, построение приостановлено.
     if (confirmClear) return;
     const { x, y } = worldCoords(e);
-    const snappedCoords = snapPosition(x, y, problem);
+    const snappedCoords = snapAt(x, y);
     const snappedX = snappedCoords.x;
     const snappedY = snappedCoords.y;
     
@@ -326,6 +499,8 @@ function App() {
         const queue: NamingTask[] = [];
         if (interaction.first.label === null) queue.push(pointNamingTask(interaction.first, "Name the first point"));
         if (second.label === null) queue.push(pointNamingTask(second, "Name the second point"));
+        const tangentTask = tangentNamingTask(snappedCoords.touch);
+        if (tangentTask !== null) queue.push(tangentTask);
         if (queue.length > 0) {
           setInteraction({ mode: "naming_queue", queue, returnTo: "segment_start" });
         } else {
@@ -351,6 +526,8 @@ function App() {
         const queue: NamingTask[] = [];
         if (interaction.first.label === null) queue.push(pointNamingTask(interaction.first, "Name the first point"));
         if (second.label === null) queue.push(pointNamingTask(second, "Name the second point"));
+        const tangentTask = tangentNamingTask(snappedCoords.touch);
+        if (tangentTask !== null) queue.push(tangentTask);
         if (queue.length > 0) {
           setInteraction({ mode: "naming_queue", queue, returnTo: "line_start" });
         } else {
@@ -375,6 +552,8 @@ function App() {
         const queue: NamingTask[] = [];
         if (interaction.first.label === null) queue.push(pointNamingTask(interaction.first, "Name the start of the ray"));
         if (second.label === null) queue.push(pointNamingTask(second, "Name the second point"));
+        const tangentTask = tangentNamingTask(snappedCoords.touch);
+        if (tangentTask !== null) queue.push(tangentTask);
         if (queue.length > 0) {
           setInteraction({ mode: "naming_queue", queue, returnTo: "ray_start" });
         } else {
@@ -489,6 +668,31 @@ function App() {
         setVersion(v => v + 1);
         return;
       }
+      case "circle_center": {
+        const existing = findPointAt(snappedX, snappedY, 7, problem);
+        const center = existing ?? problem.addPoint(snappedX, snappedY);
+        setInteraction({ mode: "circle_through", center, created: existing === null });
+        setVersion(v => v + 1);
+        return;
+      }
+      case "circle_through": {
+        const existing = findPointAt(snappedX, snappedY, 7, problem);
+        // Точка на окружности не может совпадать с центром — радиус был бы нулевым.
+        if (existing === interaction.center) return;
+        const through = existing ?? problem.addPoint(snappedX, snappedY);
+        problem.addCircle(interaction.center.id, through.id);
+        // Окружность имени не требует — спрашиваем только имена новых точек.
+        const queue: NamingTask[] = [];
+        if (interaction.center.label === null) queue.push(pointNamingTask(interaction.center, "Name the center"));
+        if (through.label === null) queue.push(pointNamingTask(through, "Name the point on the circle"));
+        if (queue.length > 0) {
+          setInteraction({ mode: "naming_queue", queue, returnTo: "circle_center" });
+        } else {
+          setInteraction({ mode: "circle_center" });
+        }
+        setVersion(v => v + 1);
+        return;
+      }
       case "naming":
       case "naming_queue":
         // Canvas is inert while the dialog is open.
@@ -528,6 +732,8 @@ function App() {
       // Вершины ещё не связаны отрезками (фигура создаётся на последнем клике),
       // поэтому они не «referenced» и удаляются свободно.
       for (const p of interaction.created) problem.removePoint(p.id);
+    } else if (interaction.mode === "circle_through" && interaction.created) {
+      problem.removePoint(interaction.center.id);
     }
   }
 
@@ -545,6 +751,9 @@ function App() {
     } else if (interaction.mode === "quad_p2" || interaction.mode === "quad_p3" || interaction.mode === "quad_p4") {
       for (const p of interaction.created) problem.removePoint(p.id);
       setInteraction({ mode: "quad_p1" });
+    } else if (interaction.mode === "circle_through" && interaction.created) {
+      problem.removePoint(interaction.center.id);
+      setInteraction({ mode: "circle_center" });
     } else {
       setInteraction({ mode: "idle" });
     }
@@ -615,6 +824,10 @@ function App() {
         return "Select or create the third vertex";
       case "quad_p4":
         return "Select or create the fourth vertex";
+      case "circle_center":
+        return "Select or create the center of the circle";
+      case "circle_through":
+        return "Select or create a point the circle passes through";
       case "naming":
       case "naming_queue":
         return null; // the dialog is the hint
@@ -647,6 +860,17 @@ function App() {
         }
         // Замкнуть контур с текущей точкой — на последнем шаге фигуры.
         previewClose={interaction.mode === "triangle_p3" || interaction.mode === "quad_p4"}
+        circleCenter={interaction.mode === "circle_through" ? interaction.center : null}
+        // Точка, через которую сейчас идёт «касание» (подсветить зелёным), и
+        // призрак точки касания к окружности, которой ещё нет.
+        touchPointId={touch?.via === "point" ? touch.point.id : null}
+        touchGhost={touch?.via === "tangent" ? touch.tangentPoint : null}
+        // Точка, чьё имя сейчас запрашивают, — мигает зелёным, пока не названа.
+        blinkPointId={
+          interaction.mode === "naming" ? interaction.point.id
+          : interaction.mode === "naming_queue" ? (interaction.queue[0]?.key ?? null)
+          : null
+        }
         curSnapped={curSnapped}
         Tool={tool}
       />

@@ -16,8 +16,16 @@ interface CanvasProps {
     previewVertices: Point[];
     // Замыкать ли контур ребром от текущей точки к первой вершине.
     previewClose: boolean;
+    // Поставленный центр строящейся окружности (радиус тянется к курсору).
+    circleCenter: Point | null;
+    // id точки, через которую сейчас идёт «касание» — подсветить зелёным.
+    touchPointId: string | null;
+    // Призрак точки касания к окружности (её ещё нет) — зелёный кружок.
+    touchGhost: { x: number; y: number } | null;
+    // id точки, чьё имя запрашивают, — мигает зелёным, пока не названа.
+    blinkPointId: string | null;
     curSnapped: { x: number; y: number; kind: "grid" | "existingPoint" | "line" } | null;
-    Tool: "point" | "segment" | "ray" | "cursor" | "line" | "triangle" | "quad";
+    Tool: "point" | "segment" | "ray" | "cursor" | "line" | "triangle" | "quad" | "circle";
 }
 
 // Продлевает прямые с kind = "drawn" за пределы холста
@@ -47,7 +55,8 @@ const getExtendedCoordinates = (
 };
 
 export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDown, onMouseUp,
-                        view, panning, firstPoint, previewVertices, previewClose, curSnapped, Tool }: CanvasProps) {
+                        view, panning, firstPoint, previewVertices, previewClose, circleCenter,
+                        touchPointId, touchGhost, blinkPointId, curSnapped, Tool }: CanvasProps) {
     return (
         <svg
             className={`canvas ${Tool === "cursor" ? (panning ? "canvas-panning" : "canvas-pannable") : ""}`}
@@ -136,6 +145,18 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDow
                     );
                 })}
 
+            {Array.from(problem.circles.values()).map((c) => (
+                <circle
+                    key={c.id}
+                    cx={c.center.x}
+                    cy={c.center.y}
+                    r={Math.hypot(c.through.x - c.center.x, c.through.y - c.center.y)}
+                    fill="none"
+                    stroke="#6B5C39"
+                    strokeWidth={2}
+                />
+            ))}
+
             {Array.from(problem.segments.values()).map((seg) => (
                 <line
                     key={`${seg.p1.id}-${seg.p2.id}`}
@@ -148,15 +169,25 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDow
                 />
             ))}
 
-            {Array.from(problem.points.values()).map((p) => (
-                <circle
-                    key={p.id}
-                    cx={p.x}
-                    cy={p.y}
-                    r={5}
-                    fill={"#6B5C39"}
-                />
-            ))}
+            {Array.from(problem.points.values()).map((p) => {
+                const blinking = p.id === blinkPointId;
+                const highlighted = p.id === touchPointId;
+                return (
+                    <circle
+                        key={p.id}
+                        className={blinking ? "point-blink" : undefined}
+                        cx={p.x}
+                        cy={p.y}
+                        r={blinking || highlighted ? 6 : 5}
+                        fill={blinking || highlighted ? "#1F8A70" : "#6B5C39"}
+                    />
+                );
+            })}
+
+            {/* призрак точки касания к окружности (точки ещё нет) */}
+            {touchGhost !== null && (
+                <circle cx={touchGhost.x} cy={touchGhost.y} r={6} fill="#1F8A70" opacity={0.7} />
+            )}
 
             {Array.from(problem.points.values())
                 .filter((p) => p.label !== null)
@@ -172,7 +203,7 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDow
                     </text>
                 ))}
 
-            {curSnapped !== null && (Tool === "point" || Tool === "segment" || Tool === "line" || Tool === "ray" || Tool === "triangle" || Tool === "quad") && (() => {
+            {curSnapped !== null && (Tool === "point" || Tool === "segment" || Tool === "line" || Tool === "ray" || Tool === "triangle" || Tool === "quad" || Tool === "circle") && (() => {
                 const blocked = Tool === "point" && curSnapped.kind === "existingPoint";
                 return (
                     <circle
@@ -245,6 +276,18 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDow
                         stroke="gray" strokeWidth={2} opacity={0.18} />
                 ));
             })()}
+            {/* предпросмотр окружности: от центра радиусом до текущей точки */}
+            {curSnapped !== null && Tool === "circle" && circleCenter !== null && (
+                <circle
+                    cx={circleCenter.x}
+                    cy={circleCenter.y}
+                    r={Math.hypot(curSnapped.x - circleCenter.x, curSnapped.y - circleCenter.y)}
+                    fill="none"
+                    stroke="gray"
+                    strokeWidth={2}
+                    opacity={0.18}
+                />
+            )}
             </g>
         </svg>
     );

@@ -54,9 +54,12 @@ export interface Square {
     readonly p4: Point;
 }
 
+// A circle has no name of its own; it is defined by its center and a point it
+// passes through (which fixes the radius).
 export interface Circle {
-    readonly center: Point | null;
-    readonly through: Point | null;
+    readonly id: string;
+    readonly center: Point;
+    readonly through: Point;
 }
 
 export type Tool = "point" | "segment" | "cursor";

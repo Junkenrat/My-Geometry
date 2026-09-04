@@ -448,6 +448,16 @@ html, body, #root {
   }
 } */
 
+/* мигание точки, чьё имя сейчас запрашивают */
+@keyframes point-blink {
+  from { opacity: 1; }
+  to   { opacity: 0.2; }
+}
+
+.point-blink {
+  animation: point-blink 0.7s ease-in-out infinite alternate;
+}
+
 .name-dialog {
   position: fixed;
   top: 32px;
