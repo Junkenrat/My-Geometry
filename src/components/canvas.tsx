@@ -1,6 +1,9 @@
 import { Problem } from "../engine/problem";
 import type { Point } from "../engine/types";
+import type { EraseTarget } from "../App";
 import { lineDrawStroke, rayDrawStroke } from "../engine/lineStroke";
+
+const ERASE_RED = "#b3261e";
 
 interface CanvasProps {
     problem: Problem;
@@ -24,8 +27,15 @@ interface CanvasProps {
     touchGhost: { x: number; y: number } | null;
     // id точки, чьё имя запрашивают, — мигает зелёным, пока не названа.
     blinkPointId: string | null;
+    // Объект под ластиком — рисуется красным.
+    eraseHover: EraseTarget | null;
+    // Перетаскивание точки: силуэт её нового положения и всего, что за ней
+    // тянется. blocked — место занято другой точкой, бросок запрещён.
+    movePreview: { point: Point; to: { x: number; y: number }; blocked: boolean } | null;
+    // id точки, которую нужно обвести контуром (наведение/захват инструментом move).
+    outlinePointId: string | null;
     curSnapped: { x: number; y: number; kind: "grid" | "existingPoint" | "line" } | null;
-    Tool: "point" | "segment" | "ray" | "cursor" | "line" | "triangle" | "quad" | "circle";
+    Tool: "point" | "segment" | "ray" | "cursor" | "line" | "triangle" | "quad" | "circle" | "eraser" | "move";
 }
 
 // Продлевает прямые с kind = "drawn" за пределы холста
@@ -56,7 +66,7 @@ const getExtendedCoordinates = (
 
 export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDown, onMouseUp,
                         view, panning, firstPoint, previewVertices, previewClose, circleCenter,
-                        touchPointId, touchGhost, blinkPointId, curSnapped, Tool }: CanvasProps) {
+                        touchPointId, touchGhost, blinkPointId, eraseHover, movePreview, outlinePointId, curSnapped, Tool }: CanvasProps) {
     return (
         <svg
             className={`canvas ${Tool === "cursor" ? (panning ? "canvas-panning" : "canvas-pannable") : ""}`}
@@ -87,6 +97,7 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDow
                     const stroke = lineDrawStroke(problem, line);
                     if (stroke === null) return null;
                     const extended = getExtendedCoordinates(stroke.x1, stroke.y1, stroke.x2, stroke.y2);
+                    const color = eraseHover?.kind === "line" && eraseHover.line === line ? ERASE_RED : "#6B5C39";
                     return (
                         <g key={line.id}>
                             <line
@@ -94,7 +105,7 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDow
                                 y1={stroke.y1}
                                 x2={stroke.x2}
                                 y2={stroke.y2}
-                                stroke="#6B5C39"
+                                stroke={color}
                                 strokeWidth={1.5}
                             />
                             {(Tool === "point" || Tool === "segment" || Tool === "line" || Tool === "ray" || Tool === "triangle" || Tool === "quad") && (
@@ -103,7 +114,7 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDow
                                     y1={extended.y1}
                                     x2={extended.x2}
                                     y2={extended.y2}
-                                    stroke="#6B5C39"
+                                    stroke={color}
                                     strokeWidth={1.5}
                                     opacity={0.25}
                                 />
@@ -120,6 +131,7 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDow
                     const dx = stroke.x2 - stroke.x1, dy = stroke.y2 - stroke.y1;
                     const len = Math.hypot(dx, dy);
                     const k = len === 0 ? 0 : 10000 / len;
+                    const color = eraseHover?.kind === "ray" && eraseHover.ray === ray ? ERASE_RED : "#6B5C39";
                     return (
                         <g key={`${ray.start.id}>${ray.through.id}`}>
                             <line
@@ -127,7 +139,7 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDow
                                 y1={stroke.y1}
                                 x2={stroke.x2}
                                 y2={stroke.y2}
-                                stroke="#6B5C39"
+                                stroke={color}
                                 strokeWidth={1.5}
                             />
                             {(Tool === "point" || Tool === "segment" || Tool === "line" || Tool === "ray" || Tool === "triangle" || Tool === "quad") && (
@@ -136,7 +148,7 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDow
                                     y1={stroke.y2}
                                     x2={stroke.x2 + dx * k}
                                     y2={stroke.y2 + dy * k}
-                                    stroke="#6B5C39"
+                                    stroke={color}
                                     strokeWidth={1.5}
                                     opacity={0.25}
                                 />
@@ -150,9 +162,9 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDow
                     key={c.id}
                     cx={c.center.x}
                     cy={c.center.y}
-                    r={Math.hypot(c.through.x - c.center.x, c.through.y - c.center.y)}
+                    r={c.radius}
                     fill="none"
-                    stroke="#6B5C39"
+                    stroke={eraseHover?.kind === "circle" && eraseHover.circle === c ? ERASE_RED : "#6B5C39"}
                     strokeWidth={2}
                 />
             ))}
@@ -164,7 +176,7 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDow
                     y1={seg.p1.y}
                     x2={seg.p2.x}
                     y2={seg.p2.y}
-                    stroke="#6B5C39"
+                    stroke={eraseHover?.kind === "segment" && eraseHover.segment === seg ? ERASE_RED : "#6B5C39"}
                     strokeWidth={2}
                 />
             ))}
@@ -172,21 +184,33 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDow
             {Array.from(problem.points.values()).map((p) => {
                 const blinking = p.id === blinkPointId;
                 const highlighted = p.id === touchPointId;
+                const erasing = eraseHover?.kind === "point" && eraseHover.point === p;
+                const fill = erasing ? ERASE_RED : blinking || highlighted ? "#1F8A70" : "#6B5C39";
                 return (
                     <circle
                         key={p.id}
                         className={blinking ? "point-blink" : undefined}
                         cx={p.x}
                         cy={p.y}
-                        r={blinking || highlighted ? 6 : 5}
-                        fill={blinking || highlighted ? "#1F8A70" : "#6B5C39"}
+                        r={blinking || highlighted || erasing ? 6 : 5}
+                        fill={fill}
                     />
                 );
             })}
 
+            {/* контур вокруг самой точки: зазор в 1px между точкой (r=5) и
+                кольцом, поэтому внутренний край кольца на радиусе 6 */}
+            {outlinePointId !== null && (() => {
+                const p = problem.points.get(outlinePointId);
+                if (p === undefined) return null;
+                return (
+                    <circle cx={p.x} cy={p.y} r={6.5} fill="none" stroke="#6B5C39" strokeWidth={1} />
+                );
+            })()}
+
             {/* призрак точки касания к окружности (точки ещё нет) */}
             {touchGhost !== null && (
-                <circle cx={touchGhost.x} cy={touchGhost.y} r={6} fill="#1F8A70" opacity={0.7} />
+                <circle cx={touchGhost.x} cy={touchGhost.y} r={5} fill="#1F8A70" opacity={0.7} />
             )}
 
             {Array.from(problem.points.values())
@@ -288,6 +312,62 @@ export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDow
                     opacity={0.18}
                 />
             )}
+
+            {/* силуэт перетаскиваемой точки и всего, что тянется за ней: концы
+                отрезков/лучей/прямых и окружность с этим центром. Объекты,
+                лишь проходящие через точку, её не упоминают и потому не едут. */}
+            {movePreview !== null && (() => {
+                const { point, to, blocked } = movePreview;
+                return (
+                    <>
+                        {Array.from(problem.segments.values())
+                            .filter((s) => s.p1 === point || s.p2 === point)
+                            .map((s) => {
+                                const other = s.p1 === point ? s.p2 : s.p1;
+                                return (
+                                    <line key={`mv-s-${s.p1.id}-${s.p2.id}`}
+                                        x1={other.x} y1={other.y} x2={to.x} y2={to.y}
+                                        stroke="gray" strokeWidth={2} opacity={0.18} />
+                                );
+                            })}
+                        {Array.from(problem.rays.values())
+                            .filter((r) => r.kind === "drawn" && (r.start === point || r.through === point))
+                            .map((r) => {
+                                const start = r.start === point ? to : r.start;
+                                const through = r.through === point ? to : r.through;
+                                const dx = through.x - start.x, dy = through.y - start.y;
+                                const len = Math.hypot(dx, dy);
+                                const k = len === 0 ? 0 : 10000 / len;
+                                return (
+                                    <line key={`mv-r-${r.start.id}>${r.through.id}`}
+                                        x1={start.x} y1={start.y}
+                                        x2={start.x + dx * k} y2={start.y + dy * k}
+                                        stroke="gray" strokeWidth={2} opacity={0.18} />
+                                );
+                            })}
+                        {Array.from(problem.lines.values())
+                            .filter((l) => l.kind === "drawn" && (l.p1 === point || l.p2 === point))
+                            .map((l) => {
+                                const a = l.p1 === point ? to : l.p1;
+                                const b = l.p2 === point ? to : l.p2;
+                                const ext = getExtendedCoordinates(a.x, a.y, b.x, b.y);
+                                return (
+                                    <line key={`mv-l-${l.id}`}
+                                        x1={ext.x1} y1={ext.y1} x2={ext.x2} y2={ext.y2}
+                                        stroke="gray" strokeWidth={2} opacity={0.18} />
+                                );
+                            })}
+                        {Array.from(problem.circles.values())
+                            .filter((c) => c.center === point)
+                            .map((c) => (
+                                <circle key={`mv-c-${c.id}`} cx={to.x} cy={to.y} r={c.radius}
+                                    fill="none" stroke="gray" strokeWidth={2} opacity={0.18} />
+                            ))}
+                        <circle cx={to.x} cy={to.y} r={5}
+                            fill={blocked ? ERASE_RED : "gray"} opacity={blocked ? 0.8 : 0.5} />
+                    </>
+                );
+            })()}
             </g>
         </svg>
     );

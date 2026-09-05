@@ -2,7 +2,7 @@ import { Problem } from "./engine/problem";
 import { Canvas } from "./components/canvas";
 import { Panel } from "./components/panel";
 import { useEffect, useRef, useState } from "react";
-import type { Point } from "./engine/types";
+import type { Point, Segment, Line, Ray, Circle } from "./engine/types";
 import { isSolved, solve } from "./engine/solve";
 import { assignLabels, ensureLabel, nextFreeLabel } from "./engine/naming";
 import { Tools } from "./components/tools";
@@ -23,7 +23,7 @@ type Extent = "segment" | "ray" | "line";
 // Where the line passes through a true grid node both candidates coincide,
 // so nodes attract automatically.
 function snapToGridAlongLine(
-  p1: Point, p2: Point, qx: number, qy: number, limit: Extent,
+  p1: Vec, p2: Vec, qx: number, qy: number, limit: Extent,
 ): { x: number; y: number } | null {
   const dx = p2.x - p1.x, dy = p2.y - p1.y;
   let best: { x: number; y: number } | null = null;
@@ -85,9 +85,14 @@ type Interaction =
   // Окружность — два клика: центр, затем точка на окружности (задаёт радиус).
   // Сама окружность имени не требует; именуются только две точки.
   | { mode: "circle_center" }
-  | { mode: "circle_through"; center: Point; created: boolean };
+  | { mode: "circle_through"; center: Point; created: boolean }
+  // Ластик: клик по объекту удаляет его.
+  | { mode: "eraser" }
+  // Move: точка перетаскивается зажатой мышью; сам захват живёт в отдельном
+  // состоянии drag, потому что это не пошаговое построение.
+  | { mode: "move" };
 
-type Tool = "point" | "segment" | "cursor" | "line" | "ray" | "triangle" | "quad" | "circle";
+type Tool = "point" | "segment" | "cursor" | "line" | "ray" | "triangle" | "quad" | "circle" | "eraser" | "move";
 
 // The active tool is derived from the interaction state, not stored separately.
 function toolOf(interaction: Interaction): Tool {
@@ -125,6 +130,10 @@ function toolOf(interaction: Interaction): Tool {
     case "circle_center":
     case "circle_through":
       return "circle";
+    case "eraser":
+      return "eraser";
+    case "move":
+      return "move";
   }
 }
 
@@ -134,8 +143,12 @@ function collinear(a: Point, b: Point, c: Point): boolean {
   return Math.abs(area) < 1e-6;
 }
 
-function findPointAt(x: number, y: number, hitRadius: number, problem: Problem): Point | null {
+// При перетаскивании точки объекты, которые едут вместе с ней, не должны
+// притягивать призрак — иначе он липнет к их старому положению. Такие объекты
+// пропускаются: их упоминание точки и есть признак «поедет вместе».
+function findPointAt(x: number, y: number, hitRadius: number, problem: Problem, moving?: Point | null): Point | null {
   for (const point of problem.points.values()) {
+    if (point === moving) continue;
     if (Math.hypot(x - point.x, y - point.y) < hitRadius)  {
       return point;
     }
@@ -143,12 +156,13 @@ function findPointAt(x: number, y: number, hitRadius: number, problem: Problem):
   return null;
 }
 
-function findLineAt(x: number, y:number, hitRadius: number, problem: Problem): {x: number, y: number, kind: "line"} | null {
+function findLineAt(x: number, y:number, hitRadius: number, problem: Problem, moving?: Point | null): {x: number, y: number, kind: "line"} | null {
   // The winner remembers its carrier so the projection can then be snapped
   // to the carrier's grid crossings.
   let best: { qx: number; qy: number; p1: Point; p2: Point; limit: Extent } | null = null;
   let minDist = hitRadius;
   for (const seg of problem.segments.values()) {
+    if (seg.p1 === moving || seg.p2 === moving) continue;
     const dx = seg.p2.x - seg.p1.x, dy = seg.p2.y - seg.p1.y;
     const len2 = dx * dx + dy * dy;
     if (len2 === 0) continue;
@@ -164,6 +178,7 @@ function findLineAt(x: number, y:number, hitRadius: number, problem: Problem): {
   }
   for (const line of problem.lines.values()) {
     if (line.kind !== "drawn") continue;
+    if (line.p1 === moving || line.p2 === moving) continue;
     const dx = line.p2.x - line.p1.x, dy = line.p2.y - line.p1.y;
     const len2 = dx * dx + dy * dy;
     if (len2 === 0) continue;
@@ -178,6 +193,7 @@ function findLineAt(x: number, y:number, hitRadius: number, problem: Problem): {
   }
   for (const ray of problem.rays.values()) {
     if (ray.kind !== "drawn") continue;
+    if (ray.start === moving || ray.through === moving) continue;
     const dx = ray.through.x - ray.start.x, dy = ray.through.y - ray.start.y;
     const len2 = dx * dx + dy * dy;
     if (len2 === 0) continue;
@@ -200,14 +216,15 @@ function findLineAt(x: number, y:number, hitRadius: number, problem: Problem): {
 
 // Ближайшая точка на дуге окружности: проекция курсора на окружность по лучу
 // из центра. Позволяет ставить точки прямо на окружности (вписать фигуру).
-function findCircleAt(x: number, y: number, hitRadius: number, problem: Problem): {x: number, y: number, kind: "line"} | null {
+function findCircleAt(x: number, y: number, hitRadius: number, problem: Problem, moving?: Point | null): {x: number, y: number, kind: "line"} | null {
   let best: { x: number; y: number } | null = null;
   let minDist = hitRadius;
   for (const c of problem.circles.values()) {
+    if (c.center === moving) continue;
     const dx = x - c.center.x, dy = y - c.center.y;
     const d = Math.hypot(dx, dy);
     if (d === 0) continue; // ровно в центре — направление на дугу не определено
-    const r = Math.hypot(c.through.x - c.center.x, c.through.y - c.center.y);
+    const r = c.radius;
     const dist = Math.abs(d - r); // отклонение курсора от окружности
     if (dist < minDist) {
       minDist = dist;
@@ -219,36 +236,37 @@ function findCircleAt(x: number, y: number, hitRadius: number, problem: Problem)
 
 // Все точки пересечения окружностей с линиями/отрезками/лучами и друг с другом —
 // «узловые» точки построений. Считаются на лету при каждом движении курсора.
-function circleIntersections(problem: Problem): Vec[] {
+function circleIntersections(problem: Problem, moving?: Point | null): Vec[] {
   const result: Vec[] = [];
-  const circles = Array.from(problem.circles.values());
-  const radius = (c: { center: Point; through: Point }) =>
-    Math.hypot(c.through.x - c.center.x, c.through.y - c.center.y);
+  const circles = Array.from(problem.circles.values()).filter(c => c.center !== moving);
   for (const c of circles) {
-    const r = radius(c);
+    const r = c.radius;
     for (const seg of problem.segments.values()) {
+      if (seg.p1 === moving || seg.p2 === moving) continue;
       result.push(...circleLineIntersections(c.center, r, seg.p1, seg.p2, 0, 1));
     }
     for (const line of problem.lines.values()) {
-      if (line.kind === "drawn") result.push(...circleLineIntersections(c.center, r, line.p1, line.p2, -Infinity, Infinity));
+      if (line.kind !== "drawn" || line.p1 === moving || line.p2 === moving) continue;
+      result.push(...circleLineIntersections(c.center, r, line.p1, line.p2, -Infinity, Infinity));
     }
     for (const ray of problem.rays.values()) {
-      if (ray.kind === "drawn") result.push(...circleLineIntersections(c.center, r, ray.start, ray.through, 0, Infinity));
+      if (ray.kind !== "drawn" || ray.start === moving || ray.through === moving) continue;
+      result.push(...circleLineIntersections(c.center, r, ray.start, ray.through, 0, Infinity));
     }
   }
   for (let i = 0; i < circles.length; i++) {
     for (let j = i + 1; j < circles.length; j++) {
       const a = circles[i]!, b = circles[j]!;
-      result.push(...circleCircleIntersections(a.center, radius(a), b.center, radius(b)));
+      result.push(...circleCircleIntersections(a.center, a.radius, b.center, b.radius));
     }
   }
   return result;
 }
 
-function findIntersectionAt(x: number, y: number, hitRadius: number, problem: Problem): {x: number, y: number, kind: "line"} | null {
+function findIntersectionAt(x: number, y: number, hitRadius: number, problem: Problem, moving?: Point | null): {x: number, y: number, kind: "line"} | null {
   let best: Vec | null = null;
   let minDist = hitRadius;
-  for (const p of circleIntersections(problem)) {
+  for (const p of circleIntersections(problem, moving)) {
     const dist = Math.hypot(x - p.x, y - p.y);
     if (dist < minDist) {
       minDist = dist;
@@ -258,16 +276,70 @@ function findIntersectionAt(x: number, y: number, hitRadius: number, problem: Pr
   return best === null ? null : { x: best.x, y: best.y, kind: "line" };
 }
 
-function snapPosition(x: number, y: number, problem: Problem): {x: number, y: number, kind: "existingPoint" | "grid" | "line"} {
+// Объект под ластиком: точка или одна из «линий» (отрезок, прямая, луч, окружность).
+export type EraseTarget =
+  | { kind: "point"; point: Point }
+  | { kind: "segment"; segment: Segment }
+  | { kind: "line"; line: Line }
+  | { kind: "ray"; ray: Ray }
+  | { kind: "circle"; circle: Circle };
+
+// Ближайший к курсору стираемый объект: сперва точка (мелкая цель), затем
+// ближайшая из кривых/окружностей.
+function findErasableAt(x: number, y: number, problem: Problem): EraseTarget | null {
+  const point = findPointAt(x, y, 10, problem);
+  if (point !== null) return { kind: "point", point };
+  let best: EraseTarget | null = null;
+  let bestDist = 8;
+  // расстояние от курсора до носителя a→b, параметр зажат в [tMin, tMax]
+  const distTo = (a: Point, b: Point, tMin: number, tMax: number): number => {
+    const dx = b.x - a.x, dy = b.y - a.y, len2 = dx * dx + dy * dy;
+    if (len2 === 0) return Infinity;
+    let t = ((x - a.x) * dx + (y - a.y) * dy) / len2;
+    t = Math.max(tMin, Math.min(tMax, t));
+    return Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy));
+  };
+  for (const seg of problem.segments.values()) {
+    const d = distTo(seg.p1, seg.p2, 0, 1);
+    if (d < bestDist) { bestDist = d; best = { kind: "segment", segment: seg }; }
+  }
+  for (const c of problem.circles.values()) {
+    const d = Math.abs(Math.hypot(x - c.center.x, y - c.center.y) - c.radius);
+    if (d < bestDist) { bestDist = d; best = { kind: "circle", circle: c }; }
+  }
+  for (const ray of problem.rays.values()) {
+    if (ray.kind !== "drawn") continue;
+    const d = distTo(ray.start, ray.through, 0, Infinity);
+    if (d < bestDist) { bestDist = d; best = { kind: "ray", ray }; }
+  }
+  for (const line of problem.lines.values()) {
+    if (line.kind !== "drawn") continue;
+    const d = distTo(line.p1, line.p2, -Infinity, Infinity);
+    if (d < bestDist) { bestDist = d; best = { kind: "line", line }; }
+  }
+  return best;
+}
+
+function eraseTarget(problem: Problem, t: EraseTarget): void {
+  switch (t.kind) {
+    case "point": problem.erasePoint(t.point); break;
+    case "segment": problem.eraseSegment(t.segment); break;
+    case "line": problem.eraseLine(t.line); break;
+    case "ray": problem.eraseRay(t.ray); break;
+    case "circle": problem.eraseCircle(t.circle); break;
+  }
+}
+
+function snapPosition(x: number, y: number, problem: Problem, moving?: Point | null): {x: number, y: number, kind: "existingPoint" | "grid" | "line"} {
   // 1st priority: near point
-  const existingPoint = findPointAt(x, y, 15, problem);
+  const existingPoint = findPointAt(x, y, 15, problem, moving);
   if (existingPoint !== null) return { x: existingPoint.x, y: existingPoint.y, kind: "existingPoint"}
   // 2nd priority: an intersection of circles/lines — a precise construction node
-  const onIntersection = findIntersectionAt(x, y, 10, problem);
+  const onIntersection = findIntersectionAt(x, y, 10, problem, moving);
   if (onIntersection !== null) return onIntersection;
   // 3rd priority: near a drawn line/segment/ray or a circle — pick the closer
-  const onLine = findLineAt(x, y, 12, problem);
-  const onCircle = findCircleAt(x, y, 12, problem);
+  const onLine = findLineAt(x, y, 12, problem, moving);
+  const onCircle = findCircleAt(x, y, 12, problem, moving);
   if (onLine !== null && onCircle !== null) {
     const dl = Math.hypot(x - onLine.x, y - onLine.y);
     const dc = Math.hypot(x - onCircle.x, y - onCircle.y);
@@ -316,7 +388,7 @@ function applyTouch(anchor: Point, cx: number, cy: number, problem: Problem): To
 
   // Касается окружности: направление совпадает с одной из двух касательных из anchor.
   for (const c of problem.circles.values()) {
-    const r = Math.hypot(c.through.x - c.center.x, c.through.y - c.center.y);
+    const r = c.radius;
     const ox = c.center.x - ax, oy = c.center.y - ay;
     const d = Math.hypot(ox, oy);
     if (d <= r + 1e-6) continue; // anchor внутри/на окружности — касательной нет
@@ -359,6 +431,13 @@ function App() {
   // Активное «касание» под курсором — для зелёной подсветки точки прохождения
   // или призрака точки касания.
   const [touch, setTouch] = useState<Touch | null>(null);
+  // Объект под ластиком — подсвечивается красным.
+  const [eraseHover, setEraseHover] = useState<EraseTarget | null>(null);
+  // Перетаскивание точки инструментом move: что тащим, куда (с учётом привязок)
+  // и не занято ли место другой точкой (тогда бросок запрещён).
+  const [drag, setDrag] = useState<{ point: Point; to: Vec; blocked: boolean } | null>(null);
+  // Точка под курсором в режиме move (пока её не схватили) — получает ободок.
+  const [moveHover, setMoveHover] = useState<Point | null>(null);
   // Сдвиг чертежа относительно экрана: чертёж таскается мышью в режиме курсора,
   // как карта. Координаты задачи не меняются — двигается только вид.
   const [view, setView] = useState({ x: 0, y: 0 });
@@ -405,6 +484,10 @@ function App() {
       setInteraction({ mode: "quad_p1" })
     } else if (t === "circle") {
       setInteraction({ mode: "circle_center" })
+    } else if (t === "eraser") {
+      setInteraction({ mode: "eraser" })
+    } else if (t === "move") {
+      setInteraction({ mode: "move" })
     } else  {
       setInteraction({ mode: "idle" });
     }
@@ -416,15 +499,27 @@ function App() {
     return { x: e.clientX - coords.left - view.x, y: e.clientY - coords.top - view.y };
   }
 
-  // Перетаскивание доступно только курсором: у остальных инструментов
+  // Курсор таскает чертёж, move — точку под нажатием; у остальных инструментов
   // нажатие — это построение.
   function handleMouseDown(e: React.MouseEvent<SVGSVGElement>) {
+    if (interaction.mode === "move") {
+      const { x, y } = worldCoords(e);
+      const grabbed = findPointAt(x, y, 12, problem);
+      if (grabbed !== null) setDrag({ point: grabbed, to: { x: grabbed.x, y: grabbed.y }, blocked: false });
+      return;
+    }
     if (tool !== "cursor") return;
     panFrom.current = { mx: e.clientX, my: e.clientY, vx: view.x, vy: view.y };
     setPanning(true);
   }
 
   function handleMouseUp() {
+    // Бросок точки: место занято другой точкой — откатываем, иначе двигаем.
+    if (drag !== null) {
+      if (!drag.blocked) problem.movePoint(drag.point, drag.to.x, drag.to.y);
+      setDrag(null);
+      setVersion(v => v + 1);
+    }
     panFrom.current = null;
     setPanning(false);
   }
@@ -438,7 +533,14 @@ function App() {
       || interaction.mode === "ray_end" ? interaction.first : null;
     if (base.kind === "grid" && anchor !== null) {
       const touched = applyTouch(anchor, x, y, problem);
-      if (touched !== null) return { x: touched.endpoint.x, y: touched.endpoint.y, kind: "line", touch: touched };
+      if (touched !== null) {
+        // Направление зафиксировано касанием; вдоль него подтягиваем конец к
+        // ближайшему узлу сетки, если он рядом — сетка присутствует, но вторична.
+        const e = touched.endpoint;
+        const grid = snapToGridAlongLine(anchor, e, e.x, e.y, "line");
+        const end = grid ?? e;
+        return { x: end.x, y: end.y, kind: "line", touch: touched };
+      }
     }
     return { ...base, touch: null };
   }
@@ -450,6 +552,21 @@ function App() {
       return;
     }
     const { x, y } = worldCoords(e);
+    if (drag !== null) {
+      // Привязки работают как обычно, но всё, что поедет вместе с точкой,
+      // из них исключено. Попадание в другую точку запрещает бросок.
+      const target = snapPosition(x, y, problem, drag.point);
+      setDrag({ ...drag, to: { x: target.x, y: target.y }, blocked: target.kind === "existingPoint" });
+      return;
+    }
+    if (interaction.mode === "eraser") {
+      setEraseHover(findErasableAt(x, y, problem));
+      return;
+    }
+    if (interaction.mode === "move") {
+      setMoveHover(findPointAt(x, y, 12, problem));
+      return;
+    }
     const s = snapAt(x, y);
     setSnapped({ x: s.x, y: s.y, kind: s.kind });
     setTouch(s.touch);
@@ -459,6 +576,8 @@ function App() {
     handleMouseUp();
     setSnapped(null);
     setTouch(null);
+    setEraseHover(null);
+    setMoveHover(null);
   }
 
   function handleClick(e: React.MouseEvent<SVGSVGElement>) {
@@ -470,8 +589,20 @@ function App() {
     const snappedY = snappedCoords.y;
     
     switch (interaction.mode) {
+      // move живёт на нажатии/отпускании мыши, клик ему не нужен
       case "idle":
+      case "move":
         return;
+      case "eraser": {
+        // Ластик бьёт по прямому попаданию, без привязок — берём сырые координаты.
+        const target = findErasableAt(x, y, problem);
+        if (target !== null) {
+          eraseTarget(problem, target);
+          setEraseHover(null);
+          setVersion(v => v + 1);
+        }
+        return;
+      }
       case "placing_point": {
         // В этом месте точка уже есть — дубль не создаём. Обратная связь
         // даётся заранее: призрачная точка под курсором краснеет.
@@ -676,15 +807,16 @@ function App() {
         return;
       }
       case "circle_through": {
-        const existing = findPointAt(snappedX, snappedY, 7, problem);
-        // Точка на окружности не может совпадать с центром — радиус был бы нулевым.
-        if (existing === interaction.center) return;
-        const through = existing ?? problem.addPoint(snappedX, snappedY);
-        problem.addCircle(interaction.center.id, through.id);
-        // Окружность имени не требует — спрашиваем только имена новых точек.
+        const { center } = interaction;
+        // Радиус берём из привязанной позиции: если там существующая точка —
+        // окружность пройдёт через неё, но саму точку прохождения на пустом
+        // месте не создаём, она не нужна на чертеже.
+        const radius = Math.hypot(snappedX - center.x, snappedY - center.y);
+        if (radius < 1e-6) return; // клик в центр — нулевой радиус
+        problem.addCircle(center.id, radius);
+        // Именуем только центр, если он ещё безымянный.
         const queue: NamingTask[] = [];
-        if (interaction.center.label === null) queue.push(pointNamingTask(interaction.center, "Name the center"));
-        if (through.label === null) queue.push(pointNamingTask(through, "Name the point on the circle"));
+        if (center.label === null) queue.push(pointNamingTask(center, "Name the center"));
         if (queue.length > 0) {
           setInteraction({ mode: "naming_queue", queue, returnTo: "circle_center" });
         } else {
@@ -828,6 +960,10 @@ function App() {
         return "Select or create the center of the circle";
       case "circle_through":
         return "Select or create a point the circle passes through";
+      case "eraser":
+        return "Click a point or line to erase it";
+      case "move":
+        return "Drag a point to move it";
       case "naming":
       case "naming_queue":
         return null; // the dialog is the hint
@@ -871,6 +1007,10 @@ function App() {
           : interaction.mode === "naming_queue" ? (interaction.queue[0]?.key ?? null)
           : null
         }
+        eraseHover={eraseHover}
+        movePreview={drag}
+        // Обводим саму точку (не силуэт): схваченную либо просто наведённую.
+        outlinePointId={drag?.point.id ?? (interaction.mode === "move" ? moveHover?.id ?? null : null)}
         curSnapped={curSnapped}
         Tool={tool}
       />
@@ -918,7 +1058,11 @@ function App() {
         />
       )}
       <Tools tool={tool} setTool={handleToolChange} />
-      <Actions onClear={handleClearRequest} />
+      <Actions
+        onClear={handleClearRequest}
+        onErase={() => handleToolChange("eraser")}
+        eraserActive={tool === "eraser"}
+      />
       <Panel
         problem={problem}
         onSolve={handleSolve}

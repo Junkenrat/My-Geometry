@@ -78,6 +78,23 @@ export function isMeaningfulFact(fact: Fact): boolean {
     return fact.kind !== "between";
 }
 
+// Все точки, на которые ссылается факт — для чистки при удалении точки ластиком.
+export function factPoints(fact: Fact): Point[] {
+    switch (fact.kind) {
+        case "right_triangle":
+            return [fact.triangle.p1, fact.triangle.p2, fact.triangle.p3, fact.rightAngleAt];
+        case "equilateral":
+        case "obtuse":
+        case "acute":
+            return [fact.triangle.p1, fact.triangle.p2, fact.triangle.p3];
+        case "perpendicular":
+        case "parallel":
+            return [fact.seg1.p1, fact.seg1.p2, fact.seg2.p1, fact.seg2.p2];
+        case "between":
+            return [fact.point, fact.from, fact.to];
+    }
+}
+
 // Сравнение фактов
 export function factsEqual(a: Fact, b: Fact): boolean {
     if (a.kind !== b.kind) return false;

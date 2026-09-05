@@ -359,6 +359,11 @@ html, body, #root {
   height: 11px !important;
 }
 
+.tool-icon-smaller {
+  width: 27px !important;
+  height: 27px !important;
+}
+
 .hint {
   position: fixed;
   top: 32px;
@@ -490,6 +495,7 @@ html, body, #root {
 .statement-found {
   position: relative;
   padding-left: 22px;
+  font-size: 17px !important;
 }
 
 .statement-empty {

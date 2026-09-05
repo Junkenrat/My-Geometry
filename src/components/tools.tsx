@@ -8,7 +8,7 @@ import CircleIcon from "../assets/icons/Circle.svg?react";
 import CursorIcon from "../assets/icons/Cursor.svg?react";
 import MoveIcon from "../assets/icons/Move.svg?react";
 
-type Tool = "point" | "segment" | "ray" | "cursor" | "line" | "triangle" | "quad" | "circle";
+type Tool = "point" | "segment" | "ray" | "cursor" | "line" | "triangle" | "quad" | "circle" | "eraser" | "move";
 
 interface ToolsProps {
   tool: Tool;
@@ -34,13 +34,13 @@ export function Tools({ tool, setTool }: ToolsProps) {
       <div className="tool-divider" />
       
       <button className={`tool-btn ${tool === "triangle" ? "tool-active" : ""}`} onClick={() => setTool("triangle")}>
-        <TriangleIcon />
+        <TriangleIcon className="tool-icon-smaller"/>
       </button>
       <button className={`tool-btn ${tool === "quad" ? "tool-active" : ""}`} onClick={() => setTool("quad")}>
         <QuadIcon />
       </button>
       <button className={`tool-btn ${tool === "circle" ? "tool-active" : ""}`} onClick={() => setTool("circle")}>
-        <CircleIcon />
+        <CircleIcon className="tool-icon-smaller"/>
       </button>
       
       <div className="tool-divider" />
@@ -48,7 +48,7 @@ export function Tools({ tool, setTool }: ToolsProps) {
       <button className={`tool-btn ${tool === "cursor" ? "tool-active" : ""}`} onClick={() => setTool("cursor")}>
         <CursorIcon />
       </button>
-      <button className="tool-btn" disabled>
+      <button className={`tool-btn ${tool === "move" ? "tool-active" : ""}`} onClick={() => setTool("move")}>
         <MoveIcon />
       </button>
     </div>

@@ -1,12 +1,13 @@
 import type { Point, Line, Ray, Segment, Angle, Triangle, Circle } from "./types";
 import { pointName } from "./types";
 import type { Fact, GivenValue, Goal, Reason } from "./facts";
-import { factsEqual } from "./facts";
+import { factsEqual, factPoints } from "./facts";
 import type { Quantity, QuantityId } from "./quantities";
 import { QuantityStore } from "./quantities";
 import type { Relation } from "./relations";
 import { relationKey } from "./relations";
 import type { AnglePoints, Condition, TrianglePoints, TriangleProperty } from "./conditions";
+import { conditionPoints } from "./conditions";
 
 const EPS = 0.000001;
 
@@ -77,7 +78,7 @@ export class Problem {
             || Array.from(this.rays.values()).some(r => r.start === point || r.through === point)
             || Array.from(this.segments.values()).some(s => s.p1 === point || s.p2 === point)
             || Array.from(this.triangles.values()).some(t => t.p1 === point || t.p2 === point || t.p3 === point)
-            || Array.from(this.circles.values()).some(c => c.center === point || c.through === point)
+            || Array.from(this.circles.values()).some(c => c.center === point)
             || this.facts.some(f =>
                 (f.kind === "between" && (f.point === point || f.from === point || f.to === point))
                 || (f.kind === "right_triangle" && f.rightAngleAt === point));
@@ -226,10 +227,10 @@ export class Problem {
         return newTriangle;
     }
 
-    // A circle through `thr` centred at `center`. Keyed by the ordered pair, so
-    // the same centre + through-point returns the existing circle.
-    addCircle(center: string, thr: string): Circle {
-        const key = `${center}>${thr}`;
+    // A circle centred at `center` with the given radius. Keyed by centre +
+    // radius, so drawing the same circle again returns the existing one.
+    addCircle(center: string, radius: number): Circle {
+        const key = `${center}>${radius}`;
         const existing = this.circles.get(key);
         if (existing !== undefined) {
             return existing;
@@ -239,10 +240,67 @@ export class Problem {
         const newCircle: Circle = {
             id,
             center: this.requirePoint(center),
-            through: this.requirePoint(thr),
+            radius,
         };
         this.circles.set(key, newCircle);
         return newCircle;
+    }
+
+    // Двигает точку. Всё, что ссылается на неё (концы отрезков/лучей/прямых,
+    // центр окружности), переезжает автоматически; объекты, лишь проходящие
+    // через точку, не меняются, так как её не упоминают. Выведенное состояние
+    // зависит от координат, поэтому пересчитываем его заново.
+    movePoint(point: Point, x: number, y: number): void {
+        point.x = x;
+        point.y = y;
+        this.resetDerived();
+    }
+
+    // --- eraser -----------------------------------------------------------
+    // Каждый метод удаляет ровно один нарисованный объект. Линию/луч не
+    // выбрасываем, а понижаем до implicit: они перестают рисоваться, но
+    // остаются доступны построениям.
+
+    eraseCircle(circle: Circle): void {
+        for (const [key, c] of this.circles) {
+            if (c === circle) { this.circles.delete(key); return; }
+        }
+    }
+
+    eraseLine(line: Line): void {
+        line.kind = "implicit";
+    }
+
+    eraseRay(ray: Ray): void {
+        ray.kind = "implicit";
+    }
+
+    // Удаляет отрезок; треугольник, у которого он был стороной, перестаёт быть
+    // треугольником. Точки остаются.
+    eraseSegment(seg: Segment): void {
+        const key = [seg.p1.id, seg.p2.id].sort().join("-");
+        this.segments.delete(key);
+        for (const [tkey, t] of this.triangles) {
+            const ids = [t.p1.id, t.p2.id, t.p3.id];
+            if (ids.includes(seg.p1.id) && ids.includes(seg.p2.id)) this.triangles.delete(tkey);
+        }
+        this.resetDerived();
+    }
+
+    // Удаляет точку и всё, что на неё опирается: отрезки/лучи/прямые с концом в
+    // ней, треугольники и углы с этой вершиной, окружности с этим центром, а
+    // также данные условия, ссылающиеся на неё.
+    erasePoint(point: Point): void {
+        for (const [k, s] of this.segments) if (s.p1 === point || s.p2 === point) this.segments.delete(k);
+        for (const [k, r] of this.rays) if (r.start === point || r.through === point) this.rays.delete(k);
+        for (const [k, l] of this.lines) if (l.p1 === point || l.p2 === point) this.lines.delete(k);
+        for (const [k, t] of this.triangles) if (t.p1 === point || t.p2 === point || t.p3 === point) this.triangles.delete(k);
+        for (const [k, a] of this.angles) if (a.vertex === point || a.ray1.through === point || a.ray2.through === point) this.angles.delete(k);
+        for (const [k, c] of this.circles) if (c.center === point) this.circles.delete(k);
+        this.facts = this.facts.filter(f => f.reason.kind !== "given" || !factPoints(f).includes(point));
+        this.conditions = this.conditions.filter(c => !conditionPoints(c).includes(point));
+        this.points.delete(point.id);
+        this.resetDerived();
     }
 
     addFact(fact: Fact): void {

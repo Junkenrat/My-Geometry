@@ -1,4 +1,5 @@
 import type { Fact, GivenValue } from "./facts";
+import { factPoints } from "./facts";
 import type { Point, Segment } from "./types";
 
 // Угол, заданный тремя точками (вершина посередине). Условие несёт именно
@@ -30,3 +31,30 @@ export type Equation =
     // a / b = value
     | { kind: "segments_ratio"; a: Segment; b: Segment; value: number } // отношение (AB / CD = 1 / 2)
     | { kind: "angles_equal"; a: AnglePoints; b: AnglePoints }; // равенство углов (∠ABC = ∠DEF)
+
+// Все точки, на которые ссылается условие — для чистки при удалении точки.
+function anglePts(a: AnglePoints): Point[] {
+    return [a.vertex, a.thr1, a.thr2];
+}
+
+export function conditionPoints(c: Condition): Point[] {
+    switch (c.kind) {
+        case "fact":
+            return factPoints(c.fact);
+        case "value":
+            return c.target.kind === "length"
+                ? [c.target.segment.p1, c.target.segment.p2]
+                : [c.target.angle.vertex, c.target.angle.ray1.through, c.target.angle.ray2.through];
+        case "angle_value":
+            return anglePts(c.angle);
+        case "triangle": {
+            const pts = [c.triangle.p1, c.triangle.p2, c.triangle.p3];
+            if (c.property.kind === "right") pts.push(c.property.vertex);
+            return pts;
+        }
+        case "equation":
+            return c.equation.kind === "angles_equal"
+                ? [...anglePts(c.equation.a), ...anglePts(c.equation.b)]
+                : [c.equation.a.p1, c.equation.a.p2, c.equation.b.p1, c.equation.b.p2];
+    }
+}
