@@ -1,5 +1,7 @@
 import type { Fact } from "./facts";
 import type { Relation } from "./relations";
+import { t } from "../i18n";
+import { getTheoremName } from "./format";
 
 // Числовое значение объекта
 export type QuantityId = string;
@@ -67,9 +69,12 @@ export class QuantityStore {
         }
         if (quantity.value !== null) {
             if (Math.abs(quantity.value - value) > EPS) {
-                const via = reason.kind === "derived" ? ` (via ${reason.theorem})` : "";
+                const via = reason.kind === "derived"
+                    ? t("conflict.via", { theorem: getTheoremName(reason.theorem) })
+                    : "";
                 const label = quantity.labelOf();
-                this.conflict(`${label} = ${quantity.value}, but also ${label} = ${value}${via}`);
+                this.conflict(t("conflict.valueMismatch",
+                    { label, a: quantity.value, b: value, via }));
             }
             return false;
         }

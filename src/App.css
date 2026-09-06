@@ -38,16 +38,37 @@ html, body, #root {
   overflow: hidden;
 }
 
-.app-title {
+.title-container {
   position: absolute;
+  display: flex;
+  flex-direction: row;
+  top: 24px;
+  left: 34px;
+  margin: 0;
+  z-index: 10;
+  gap: 12px;
+  align-items: center;
+}
+
+.lang-button {
+  height: 28px;
+  width: 35px;
+  text-align: center;
+  background-color: var(--bg-card);
+  border: 1px solid var(--green);
+  border-radius: 5px;
+  margin-top: 4px;
+}
+
+.lang-button:hover {
+  background-color: var(--light-accent);
+}
+
+.app-title {
   font-family: "Spectral", Georgia, serif;
   font-size: 28px;
   font-weight: 400;
   color: var(--drawing);
-  top: 34px;
-  left: 34px;
-  margin: 0;
-  z-index: 10;
 }
 
 .app-layout {
@@ -186,13 +207,12 @@ html, body, #root {
   background: #E9E5D8;
 }
 
-/* режим курсора: чертёж можно таскать мышью */
 .canvas-pannable {
-  cursor: grab;
+  cursor: default;
 }
 
 .canvas-panning {
-  cursor: grabbing;
+  cursor: default;
 }
 
 .tools-panel {
@@ -226,9 +246,6 @@ html, body, #root {
   max-width: 480px;
 }
 
-/* Problem tab: Given and Found share the free height equally, Goal is pinned
-   to the bottom. min-height: 0 lets flex children shrink below content size
-   so the inner lists can scroll instead of pushing the panel open. */
 .problem-tab {
   flex: 1;
   min-height: 0;
@@ -250,8 +267,6 @@ html, body, #root {
   padding-right: 4px;
 }
 
-/* the "Given" input box sits right under the heading, above the scrolling
-   list, instead of trailing it */
 .panel-section .form {
   flex: 0 0 auto;
   margin: 0 0 8px 0;
@@ -471,10 +486,7 @@ html, body, #root {
 .point-blink {
   animation: point-blink 0.7s ease-in-out infinite alternate;
 }
-
-/* Окно требует ответа: на запрещённое действие мигаем рамкой и фоном.
-   Два класса с разными именами анимации — чтобы повторный отказ
-   перезапускал мигание, а не игнорировался как «та же анимация». */
+/* Анимация мигания окна */
 @keyframes attn-blink-a {
   0%, 100% { border-color: var(--border); background: var(--bg-card); }
   50%      { border-color: #1F8A70; background: #dff0ea; }
@@ -547,7 +559,6 @@ html, body, #root {
   background: var(--green);
 }
 
-/* given rows carry a remove button on the right */
 .statement-given {
   display: flex;
   align-items: center;
@@ -569,9 +580,33 @@ html, body, #root {
   color: var(--text);
 }
 
-/* combobox for typing/picking statements */
 .statement-box {
   position: relative;
+}
+
+/* Плейсхолдер полей ввода утверждений рисуется своим слоем: нативный
+   обрезается в одну строку, а подсказка цели должна ложиться в две. */
+.statement-field {
+  display: grid;
+}
+
+/* Поле и плейсхолдер лежат в одной ячейке сетки: высоту строки задаёт тот,
+   что выше. Длинная подсказка растягивает поле на две строки, короткая и
+   заполненное поле оставляют его в одну — без фиксированных высот. */
+.statement-field > .input,
+.statement-field > .statement-placeholder {
+  grid-area: 1 / 1;
+}
+
+.statement-placeholder {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1.25;
+  pointer-events: none;
 }
 
 .statement-input-error {
@@ -599,7 +634,6 @@ html, body, #root {
   overflow: hidden;
 }
 
-/* opens upward — for the goal box pinned to the panel bottom */
 .statement-suggestions-up {
   top: auto;
   bottom: 100%;
@@ -645,21 +679,19 @@ html, body, #root {
   font-size: 13px;
 }
 
-/* live readout of what Enter will do in the goal box */
 .statement-preview {
   margin-top: 4px;
   color: var(--green);
   font-size: 13px;
 }
 
-/* ---- Вкладка Solution: нумерованные шаги с крупными формулами ---- */
+/* ---- Вкладка Solution ---- */
 .solution-step {
   display: flex;
   gap: 12px;
   margin-bottom: 20px;
 }
 
-/* номер шага в кружке слева */
 .step-number {
   flex: 0 0 auto;
   width: 28px;
@@ -678,30 +710,25 @@ html, body, #root {
   min-width: 0;
 }
 
-/* на чём основан шаг — обычным шрифтом */
 .step-claim {
   font-size: 16px;
   color: var(--text);
   line-height: 1.5;
 }
 
-.step-source {
-  text-decoration: underline;
-  text-decoration-color: var(--bold-border);
-}
-
+/* Объект шага намеренно без оформления: подчёркивание закреплено
+   за названием теоремы, чтобы их не путать. */
 .step-theorem {
   color: var(--green);
   text-decoration: underline;
 }
 
-/* выкладка — крупнее текста, чтобы читалась как формула */
 .step-formula {
   font-size: 18px;
   margin-top: 6px;
   color: var(--text);
-  /* формулы с длинными именами (∠ABC + ∠ACB + ∠BAC = 180°) не влезают
-     в узкую панель: переносим по пробелам, то есть между слагаемыми */
+  /* формулы с длинными именами не влезают
+     в узкую панель, так что переносим по пробелам, то есть между слагаемыми */
   overflow-wrap: break-word;
 }
 

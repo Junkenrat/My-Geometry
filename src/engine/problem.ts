@@ -8,6 +8,7 @@ import type { Relation } from "./relations";
 import { relationKey } from "./relations";
 import type { AnglePoints, Condition, TrianglePoints, TriangleProperty } from "./conditions";
 import { conditionPoints } from "./conditions";
+import { t } from "../i18n";
 
 const EPS = 0.000001;
 
@@ -134,12 +135,12 @@ export class Problem {
         const new_p = this.requirePoint(id);
         label = label.toUpperCase();
         if (!(/^[a-zA-Z]$/.test(label))) {
-            return "Must be a single letter A-Z";
+            return t("naming.errorSingleLetter");
         }
         for (const point of this.points.values()) {
             if (point.id === id) continue;
             if (point.label === label) {
-                return `Name "${label}" is already taken`;
+                return t("naming.errorTaken", { label });
             }
         }
         new_p.label = label;

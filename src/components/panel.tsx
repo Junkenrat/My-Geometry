@@ -6,6 +6,7 @@ import { SetGoal } from "./setGoal";
 import { useState } from "react";
 import { Solution } from "./solution";
 import type { Conflict } from "../engine/validate";
+import { t } from "../i18n";
 
 interface PanelProps {
     problem: Problem;
@@ -55,9 +56,9 @@ export function Panel({problem, onSolve, conflicts, onAdd, onSetGoal}: PanelProp
         <div className="panel">
             <div className="tabs">
                 <button className={`tab ${activeTab === "problem" ? "tab-active" : ""}`}
-                onClick={() => setActiveTab("problem")}>Problem</button>
+                onClick={() => setActiveTab("problem")}>{t("panel.tab.problem")}</button>
                 <button className={`tab ${activeTab === "solution" ? "tab-active" : ""}`}
-                onClick={() => setActiveTab("solution")}>Solution</button>
+                onClick={() => setActiveTab("solution")}>{t("panel.tab.solution")}</button>
             </div>
 
             {activeTab === "problem" && (
@@ -68,18 +69,18 @@ export function Panel({problem, onSolve, conflicts, onAdd, onSetGoal}: PanelProp
                     {/* Given и Found делят свободное место поровну, каждый список
                         скроллится сам; Goal прижат к низу панели. */}
                     <div className="panel-section">
-                        <h3 className="section-title">Given</h3>
+                        <h3 className="section-title">{t("panel.given")}</h3>
                         <AddStatement problem={problem} onAdd={onAdd} />
                         <div className="statements-list">
                             {givenItems.length === 0 && (
-                                <div className="statement-empty">No conditions yet</div>
+                                <div className="statement-empty">{t("panel.noConditions")}</div>
                             )}
                             {givenItems.map((item, index) => (
                                 <div key={`given-${index}`} className="statement statement-given">
                                     <span>{item.text}</span>
                                     <button
                                         className="statement-remove"
-                                        aria-label="Remove condition"
+                                        aria-label={t("panel.removeCondition")}
                                         onClick={() => handleRemove(item)}
                                     >
                                         ×
@@ -90,12 +91,10 @@ export function Panel({problem, onSolve, conflicts, onAdd, onSetGoal}: PanelProp
                     </div>
 
                     <div className="panel-section">
-                    <h3 className="section-title">Found</h3>
+                    <h3 className="section-title">{t("panel.found")}</h3>
                     <div className="statements-list">
                         {foundItems.length === 0 && (
-                            <div className="statement-empty">
-                                If we can find any new values we'll show them here
-                            </div>
+                            <div className="statement-empty">{t("panel.noFound")}</div>
                         )}
                         {foundItems.map((text, index) => (
                             <div key={`found-${index}`} className="statement statement-found">
@@ -107,9 +106,9 @@ export function Panel({problem, onSolve, conflicts, onAdd, onSetGoal}: PanelProp
                     </div>
 
                     <div className="panel-goal">
-                        <h3 className="section-title">Goal</h3>
+                        <h3 className="section-title">{t("panel.goal")}</h3>
                         <SetGoal problem={problem} onSet={onSetGoal} />
-                        <button className="btn btn-primary" onClick={onSolve}>Solve</button>
+                        <button className="btn btn-primary" onClick={onSolve}>{t("panel.solve")}</button>
                     </div>
                 </div>
             )}

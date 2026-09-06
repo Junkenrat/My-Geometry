@@ -1,4 +1,6 @@
 import type { Premise, QuantityId, QReason, QuantityStore } from "./quantities";
+import { t } from "../i18n";
+import { getTheoremName } from "./format";
 
 export interface RelationReason {
     readonly theorem: string;
@@ -65,8 +67,11 @@ function trySolveEqual(store: QuantityStore, rel: Relation & { kind: "equal" }):
         return store.assign(rel.a, vb, derivedReason(rel, [rel.b]));
     }
     if (va !== null && vb !== null && Math.abs(va - vb) > EPS) {
-        store.conflict(`${store.label(rel.a)} = ${va} and ${store.label(rel.b)} = ${vb}, `
-            + `but they must be equal (${rel.reason.theorem})`);
+        store.conflict(t("conflict.mustBeEqual", {
+            aLabel: store.label(rel.a), a: va,
+            bLabel: store.label(rel.b), b: vb,
+            theorem: getTheoremName(rel.reason.theorem),
+        }));
     }
     return false;
 }
@@ -83,8 +88,12 @@ function trySolveRatio(store: QuantityStore, rel: Relation & { kind: "ratio" }):
         return store.assign(rel.a, vb * rel.value, derivedReason(rel, [rel.b]));
     }
     if (va !== null && vb !== null && Math.abs(va - rel.value * vb) > EPS) {
-        store.conflict(`${store.label(rel.a)} = ${va} and ${store.label(rel.b)} = ${vb}, `
-            + `but ${store.label(rel.a)} / ${store.label(rel.b)} must be ${rel.value} (${rel.reason.theorem})`);
+        store.conflict(t("conflict.ratioMismatch", {
+            aLabel: store.label(rel.a), a: va,
+            bLabel: store.label(rel.b), b: vb,
+            value: rel.value,
+            theorem: getTheoremName(rel.reason.theorem),
+        }));
     }
     return false;
 }
@@ -112,7 +121,10 @@ function trySolveSum(store: QuantityStore, rel: Relation & { kind: "sum" }): boo
         if (target === undefined) return false;
         const missing = totalValue - knownSum;
         if (missing < -EPS) {
-            store.conflict(`${store.label(target)} would be negative (${rel.reason.theorem})`);
+            store.conflict(t("conflict.negative", {
+                label: store.label(target),
+                theorem: getTheoremName(rel.reason.theorem),
+            }));
             return false;
         }
         const usedParts = rel.parts.filter(id => id !== target);
@@ -154,8 +166,10 @@ function solveLeg(
 ): boolean {
     const sq = hypValue * hypValue - knownLegValue * knownLegValue;
     if (sq < -EPS) {
-        store.conflict(`Hypotenuse ${store.label(rel.hyp)} = ${hypValue} is shorter than `
-            + `leg ${store.label(knownLeg)} = ${knownLegValue}`);
+        store.conflict(t("conflict.hypotenuseShorter", {
+            hyp: store.label(rel.hyp), hypValue,
+            leg: store.label(knownLeg), legValue: knownLegValue,
+        }));
         return false;
     }
     return store.assign(target, Math.sqrt(Math.max(0, sq)), derivedReason(rel, [rel.hyp, knownLeg]));

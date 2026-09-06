@@ -2,6 +2,7 @@ import { Problem } from "../engine/problem";
 import { parseGoalInput } from "../engine/statements";
 import { formatGoal, formatGoalInput } from "../engine/format";
 import { StatementBox } from "./statementBox";
+import { t } from "../i18n";
 
 interface SetGoalProps {
     problem: Problem;
@@ -20,7 +21,7 @@ export function SetGoal({ problem, onSet }: SetGoalProps) {
                     return { expected: s.expected, suggestions: s.suggestions, result: s.goal, error: s.error };
                 }}
                 onCommit={(goal) => { problem.setGoal(goal); onSet(); }}
-                placeholder="Object to find or statement to prove..."
+                placeholder={t("box.goalPlaceholder")}
                 preview={formatGoal}
                 dropUp
                 restingText={problem.goal !== null ? formatGoalInput(problem.goal) : ""}

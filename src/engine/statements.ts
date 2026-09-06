@@ -3,6 +3,7 @@ import type { Goal } from "./facts";
 import type { Problem } from "./problem";
 import type { Carrier, Line, Point, Ray, Segment } from "./types";
 import { carrierName, carrierPoints } from "./types";
+import { t, type Key } from "../i18n";
 
 // User-typed statements about segments, angles and triangles:
 //   AB = 5              length
@@ -46,11 +47,14 @@ export type ExpectedSlot =
 
 type TriPred = "right" | "equilateral" | "obtuse" | "acute";
 
-const TRIANGLE_PREDICATES: { pred: TriPred; hint: string; needsVertex: boolean }[] = [
-    { pred: "right", hint: "right triangle", needsVertex: true },
-    { pred: "equilateral", hint: "equilateral triangle", needsVertex: false },
-    { pred: "obtuse", hint: "obtuse triangle (inert)", needsVertex: false },
-    { pred: "acute", hint: "acute triangle (inert)", needsVertex: false },
+// pred — то, что пользователь набирает, поэтому оно всегда латиницей;
+// переводится только пояснение рядом. Ключ, а не строка: таблица собирается
+// один раз при импорте, а язык меняется позже.
+const TRIANGLE_PREDICATES: { pred: TriPred; hint: Key; needsVertex: boolean }[] = [
+    { pred: "right", hint: "suggest.rightTriangle", needsVertex: true },
+    { pred: "equilateral", hint: "suggest.equilateralTriangle", needsVertex: false },
+    { pred: "obtuse", hint: "suggest.obtuseTriangle", needsVertex: false },
+    { pred: "acute", hint: "suggest.acuteTriangle", needsVertex: false },
 ];
 
 export interface StatementInput {
@@ -77,11 +81,13 @@ const WORD_OPS: Record<string, Op> = {
     par: "∥", parallel: "∥",
 };
 
-const RELATION_SUGGESTIONS: { op: Op; label: string; hint: string; typed: string[] }[] = [
-    { op: "=", label: "= …", hint: "length or equal segment", typed: ["="] },
-    { op: "/", label: "/ … = …", hint: "ratio", typed: ["/"] },
-    { op: "⊥", label: "⊥ …", hint: "perpendicular", typed: ["⊥", "_|_", "perp", "perpendicular"] },
-    { op: "∥", label: "∥ …", hint: "parallel", typed: ["∥", "||", "par", "parallel"] },
+// label — это сама запись отношения, она языконезависима; typed перечисляет
+// то, что можно набрать, и тоже остаётся латиницей.
+const RELATION_SUGGESTIONS: { op: Op; label: string; hint: Key; typed: string[] }[] = [
+    { op: "=", label: "= …", hint: "suggest.lengthOrEqualSegment", typed: ["="] },
+    { op: "/", label: "/ … = …", hint: "suggest.ratio", typed: ["/"] },
+    { op: "⊥", label: "⊥ …", hint: "suggest.perpendicular", typed: ["⊥", "_|_", "perp", "perpendicular"] },
+    { op: "∥", label: "∥ …", hint: "suggest.parallel", typed: ["∥", "||", "par", "parallel"] },
 ];
 
 // Tokens the lexer recognizes; anything it cannot match becomes the tail —
@@ -372,19 +378,19 @@ function consume(problem: Problem, parse: ParseData, token: Token, parts: string
         case "object-or-value": {
             if (token.kind === "number") {
                 if (expected !== "object-or-value" || parse.obj1 === undefined) {
-                    return `Expected an object, got "${token.text}"`;
+                    return t("parse.expectedObject", { token: token.text });
                 }
-                if (token.value === undefined) return `Expected a number, got "${token.text}"`;
-                const t = objType(parse.obj1);
-                if (t === "Segment" && token.value <= 0) return "Length must be positive";
-                if (t === "Angle" && (token.value <= 0 || token.value > 180)) {
-                    return "Angle must be between 0 and 180";
+                if (token.value === undefined) return t("parse.expectedNumber", { token: token.text });
+                const type = objType(parse.obj1);
+                if (type === "Segment" && token.value <= 0) return t("parse.lengthPositive");
+                if (type === "Angle" && (token.value <= 0 || token.value > 180)) {
+                    return t("parse.angleRange");
                 }
                 parse.value = token.value;
                 parts.push(token.text);
                 return null;
             }
-            if (token.kind !== "letters") return `Expected an object, got "${token.text}"`;
+            if (token.kind !== "letters") return t("parse.expectedObject", { token: token.text });
             // Resolve by token length: 2 letters = segment, 3 = angle. The type
             // is not forced by the left operand — that lets a mismatched right
             // operand ("AB = ∠DEF") produce a clear "cannot compare" message.
@@ -401,8 +407,9 @@ function consume(problem: Problem, parse: ParseData, token: Token, parts: string
                 if (ang !== undefined) obj = { kind: "Angle", object: ang };
             }
             if (obj === undefined) {
-                const noun = token.text.length === 3 ? "angle" : token.text.length === 2 ? "segment" : "object";
-                return `Unknown ${noun} "${token.text.toUpperCase()}"`;
+                const noun: Key = token.text.length === 3 ? "parse.noun.angle"
+                    : token.text.length === 2 ? "parse.noun.segment" : "parse.noun.object";
+                return t("parse.unknownObject", { noun: t(noun), token: token.text.toUpperCase() });
             }
             if (parse.obj1 === undefined) {
                 parse.obj1 = obj;
@@ -413,8 +420,8 @@ function consume(problem: Problem, parse: ParseData, token: Token, parts: string
                 const compatible = aboutDirection
                     ? isCarrierKind(obj) && isCarrierKind(parse.obj1)
                     : objType(obj) === objType(parse.obj1);
-                if (!compatible) return "Cannot compare a length and an angle";
-                if (sameObject(obj, parse.obj1)) return "Both sides refer to the same object";
+                if (!compatible) return t("parse.incompatible");
+                if (sameObject(obj, parse.obj1)) return t("parse.sameObject");
                 parse.obj2 = obj;
             }
             parts.push(objName(obj, token.text));
@@ -424,7 +431,7 @@ function consume(problem: Problem, parse: ParseData, token: Token, parts: string
             // Отсечь "=" и "/" для луча и прямой: измерять там нечего.
             if (token.kind === "op" && (token.op === "=" || token.op === "/")
                 && parse.obj1?.kind === "Carrier") {
-                return "A ray or a line has no length";
+                return t("parse.noLength");
             }
             // A triangle predicate (a plain word) reinterprets the 3-letter
             // object as a triangle instead of an angle.
@@ -438,11 +445,11 @@ function consume(problem: Problem, parse: ParseData, token: Token, parts: string
                     return null;
                 }
                 return parse.obj1?.kind === "Angle"
-                    ? `Expected a relation or triangle property, got "${token.text}"`
-                    : `Expected =, /, ⊥ or ∥, got "${token.text}"`;
+                    ? t("parse.expectedRelationOrPredicate", { token: token.text })
+                    : t("parse.expectedRelation", { token: token.text });
             }
             if (token.kind !== "op" || token.op === undefined) {
-                return `Expected =, /, ⊥ or ∥, got "${token.text}"`;
+                return t("parse.expectedRelation", { token: token.text });
             }
             parse.op = token.op;
             parts.push(token.op);
@@ -450,32 +457,32 @@ function consume(problem: Problem, parse: ParseData, token: Token, parts: string
         }
         case "vertex": {
             if (token.kind !== "letters" || token.text.length !== 1) {
-                return `Expected a triangle vertex, got "${token.text}"`;
+                return t("parse.expectedVertex", { token: token.text });
             }
             const tri = trianglePointsOf(parse.obj1);
-            if (tri === null) return "No triangle";
+            if (tri === null) return t("parse.noTriangle");
             const label = token.text.toUpperCase();
             const v = [tri.p1, tri.p2, tri.p3].find(p => p.label === label);
-            if (v === undefined) return `"${label}" is not a vertex of the triangle`;
+            if (v === undefined) return t("parse.notAVertex", { label });
             parse.vertex = v;
             parts.push(label);
             return null;
         }
         case "equals": {
-            if (token.kind !== "op" || token.op !== "=") return `Expected "=", got "${token.text}"`;
+            if (token.kind !== "op" || token.op !== "=") return t("parse.expectedEquals", { token: token.text });
             parse.eqSeen = true;
             parts.push("=");
             return null;
         }
         case "value": {
-            if (token.kind !== "number") return `Expected a number, got "${token.text}"`;
-            if (token.value === undefined || token.value <= 0) return "Ratio must be positive";
+            if (token.kind !== "number") return t("parse.expectedNumber", { token: token.text });
+            if (token.value === undefined || token.value <= 0) return t("parse.ratioPositive");
             parse.value = token.value;
             parts.push(token.text);
             return null;
         }
         case "done":
-            return `Unexpected "${token.text}"`;
+            return t("parse.unexpected", { token: token.text });
     }
 }
 
@@ -604,10 +611,10 @@ function suggest(
         const relations: Suggestion[] = RELATION_SUGGESTIONS
             .filter(r => !forAngle || r.op === "=")
             .filter(r => !forCarrier || r.op === "⊥" || r.op === "∥")
-            .filter(r => r.typed.some(t => t.startsWith(filter)))
+            .filter(r => r.typed.some(typed => typed.startsWith(filter)))
             .map(r => ({
                 label: r.label,
-                hint: r.op === "=" && forAngle ? "value or equal angle" : r.hint,
+                hint: t(r.op === "=" && forAngle ? "suggest.valueOrEqualAngle" : r.hint),
                 apply: prefix + r.op + " ",
                 completes: false,
             }));
@@ -619,7 +626,7 @@ function suggest(
                 if (!p.pred.startsWith(filter)) continue;
                 predicates.push({
                     label: p.pred,
-                    hint: p.hint,
+                    hint: t(p.hint),
                     apply: triPrefix + p.pred + (p.needsVertex ? " " : ""),
                     completes: !p.needsVertex,
                 });
@@ -699,7 +706,7 @@ function analyze(problem: Problem, text: string): Analysis {
     if (expected === "done") {
         if (partial !== "") {
             return { parse, canonical, partial, expected, suggestions: [], complete: false,
-                error: `Unexpected "${partial}"` };
+                error: t("parse.unexpected", { token: partial }) };
         }
         return { parse, canonical, partial: "", expected, suggestions: [], error: null, complete: true };
     }

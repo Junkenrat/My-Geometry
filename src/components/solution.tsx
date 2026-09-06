@@ -3,6 +3,7 @@ import { formatAnglePoints, formatConditions, formatNumber, formatSegmentName,
 import { conditionHolds } from "../engine/solve";
 import { solutionSteps } from "../engine/steps";
 import { Problem } from "../engine/problem";
+import { t, tNodes } from "../i18n";
 
 interface SolutionProps {
     problem: Problem;
@@ -21,7 +22,7 @@ function answerOf(problem: Problem): string | null {
         return value === null ? null : `${formatAnglePoints(goal.angle)} = ${formatNumber(value)}°`;
     }
     if (!conditionHolds(problem, goal.condition)) return null;
-    return `${formatConditions(goal.condition) ?? "?"} — proved`;
+    return t("solution.proved", { statement: formatConditions(goal.condition) ?? "?" });
 }
 
 // Пошаговая выкладка: номер, использованное свойство обычным шрифтом,
@@ -31,30 +32,35 @@ export function Solution({ problem }: SolutionProps) {
     const answer = answerOf(problem);
 
     if (steps.length === 0) {
-        return <div className="statement-empty">No derivation steps yet — press Solve.</div>;
+        return <div className="statement-empty">{t("solution.empty")}</div>;
     }
     return (
         <div className="solution">
-            <h3 className="section-title">Solution</h3>
-            {steps.map((step, index) => (
+            <h3 className="section-title">{t("solution.title")}</h3>
+            {steps.map((step, index) => {
+                const theorem = <span className="step-theorem">{getTheoremName(step.theorem)}</span>;
+                return (
                 <div className="solution-step" key={index}>
                     <div className="step-number">{index + 1}</div>
                     <div className="step-body">
+                        {/* Порядок «источник — теорема» и двоеточие приходят из словаря:
+                            в en источник идёт первым, в ru — последним. */}
                         <div className="step-claim">
-                            {step.source !== null && (
-                                <>For <span className="step-source">{step.source}</span>, according to </>
-                            )}
-                            <span className="step-theorem">{getTheoremName(step.theorem)}:</span>
+                            {step.source !== null
+                                ? tNodes("solution.claimWithSource",
+                                    { source: <span className="step-source">{step.source}</span>, theorem })
+                                : tNodes("solution.claim", { theorem })}
                         </div>
                         {step.formulas.map((formula, i) => (
                             <div className="step-formula" key={i}>{formula}</div>
                         ))}
                     </div>
                 </div>
-            ))}
+                );
+            })}
             {answer !== null && (
                 <div className="solution-answer">
-                    <div className="answer-label">Answer</div>
+                    <div className="answer-label">{t("solution.answer")}</div>
                     <div className="answer-value">{answer}</div>
                 </div>
             )}

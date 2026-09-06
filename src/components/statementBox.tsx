@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ExpectedSlot, Suggestion } from "../engine/statements";
+import { t } from "../i18n";
 
 // Состояние разбора, которое комбобокс получает от парсера: что предложить,
 // готов ли результат (условие или цель) и есть ли ошибка.
@@ -33,6 +34,7 @@ export function StatementBox<T>({ parse, onCommit, placeholder, preview, dropUp,
     const [draft, setDraft] = useState<string | null>(null);
     const [highlighted, setHighlighted] = useState(0);
     const [focused, setFocused] = useState(false);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     const isDisplay = restingText !== undefined;
     const editing = draft !== null;
@@ -52,6 +54,14 @@ export function StatementBox<T>({ parse, onCommit, placeholder, preview, dropUp,
         onCommit(done.result);
         setDraft(null);
         setHighlighted(0);
+        // Поле-индикатор (цель) после ввода возвращается в покой: закрываем
+        // список и снимаем фокус, чтобы поле показало результат. Состояние
+        // гасим сами, а не ждём события blur, — оно может и не дойти.
+        // Поле условий фокус сохраняет: следом обычно вводят ещё одно.
+        if (isDisplay) {
+            setFocused(false);
+            inputRef.current?.blur();
+        }
     }
 
     // Выбирает подсказку из выпадающего списка
@@ -90,15 +100,25 @@ export function StatementBox<T>({ parse, onCommit, placeholder, preview, dropUp,
     const open = focused && (suggestions.length > 0 || numberNote);
     return (
         <div className="statement-box">
+            <div className="statement-field">
             <input
+                ref={inputRef}
                 className={`input ${state.error !== null ? "statement-input-error" : ""}`}
                 value={text}
-                placeholder={placeholder}
+                // Нативный placeholder заменён своим слоем (см. ниже), поэтому
+                // подпись поля задаём явно — иначе оно осталось бы безымянным.
+                aria-label={placeholder}
                 onChange={(e) => { setDraft(e.target.value); setHighlighted(0); }}
                 onKeyDown={handleKeyDown}
                 onFocus={() => { setFocused(true); if (!editing) setDraft(""); }}
                 onBlur={() => { setFocused(false); if (isDisplay) setDraft(null); }}
             />
+            {/* Собственный плейсхолдер: нативный не переносится на вторую строку,
+                а подсказка цели длиннее поля. Кликов не перехватывает. */}
+            {text === "" && (
+                <div className="statement-placeholder" aria-hidden="true">{placeholder}</div>
+            )}
+            </div>
             {state.result !== null && (
                 <span className="statement-ready" aria-hidden="true">↵</span>
             )}
@@ -121,12 +141,12 @@ export function StatementBox<T>({ parse, onCommit, placeholder, preview, dropUp,
                         </div>
                     ))}
                     {numberNote && (
-                        <div className="statement-note">… or type a number</div>
+                        <div className="statement-note">{t("box.orNumber")}</div>
                     )}
                 </div>
             )}
             {state.result !== null && preview !== undefined && (
-                <div className="statement-preview">{preview(state.result)} — Enter</div>
+                <div className="statement-preview">{t("box.commit", { preview: preview(state.result) })}</div>
             )}
             {state.error !== null && (
                 <div className="statement-error">{state.error}</div>

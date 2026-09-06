@@ -1,6 +1,7 @@
 import { Problem } from "../engine/problem";
 import { parseStatementInput } from "../engine/statements";
 import { StatementBox } from "./statementBox";
+import { t } from "../i18n";
 
 interface AddStatementProps {
     problem: Problem;
@@ -18,7 +19,7 @@ export function AddStatement({ problem, onAdd }: AddStatementProps) {
                     return { expected: s.expected, suggestions: s.suggestions, result: s.condition, error: s.error };
                 }}
                 onCommit={(condition) => { problem.addCondition(condition); onAdd(); }}
-                placeholder="Start entering the condition..."
+                placeholder={t("box.conditionPlaceholder")}
             />
         </div>
     );

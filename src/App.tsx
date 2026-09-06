@@ -13,6 +13,7 @@ import "./App.css";
 import { validate } from "./engine/validate";
 import { segmentsCross, circleLineIntersections, circleCircleIntersections } from "./engine/geometry";
 import type { Vec } from "./engine/geometry";
+import { t, toggleLanguage, useLanguage, type Key } from "./i18n";
 
 const GRID = 30;
 const LINE_GRID_RADIUS = 8;
@@ -44,7 +45,9 @@ function snapToGridAlongLine(
 
 interface NamingTask {
   key: string;
-  title: string;
+  // Ключ словаря, а не текст: очередь лежит в состоянии, и язык может
+  // смениться, пока диалог открыт.
+  title: Key;
   placeholder: () => string;
   submit: (value: string) => string | null;
   // What happens when the dialog closes: points get a fallback letter
@@ -465,7 +468,7 @@ function App() {
     return true;
   }
 
-  function pointNamingTask(point: Point, title: string): NamingTask {
+  function pointNamingTask(point: Point, title: Key): NamingTask {
     return {
       key: point.id,
       title,
@@ -477,33 +480,33 @@ function App() {
 
   // При фиксации касательной к окружности материализуем точку касания (если её
   // ещё нет) и ставим в очередь именования — она будет мигать, пока не названа.
-  function tangentNamingTask(t: Touch | null): NamingTask | null {
-    if (t === null || t.via !== "tangent") return null;
-    const existing = findPointAt(t.tangentPoint.x, t.tangentPoint.y, 3, problem);
-    const point = existing ?? problem.addPoint(t.tangentPoint.x, t.tangentPoint.y);
-    return point.label === null ? pointNamingTask(point, "Name the point of tangency") : null;
+  function tangentNamingTask(hit: Touch | null): NamingTask | null {
+    if (hit === null || hit.via !== "tangent") return null;
+    const existing = findPointAt(hit.tangentPoint.x, hit.tangentPoint.y, 3, problem);
+    const point = existing ?? problem.addPoint(hit.tangentPoint.x, hit.tangentPoint.y);
+    return point.label === null ? pointNamingTask(point, "naming.tangency") : null;
   }
 
-  function handleToolChange(t: Tool) {
+  function handleToolChange(next: Tool) {
     if (refusedWhileAwaiting()) return;
     discardPendingPoint();
-    if (t === "point") {
+    if (next === "point") {
       setInteraction({ mode: "placing_point" });
-    } else if (t === "segment") {
+    } else if (next === "segment") {
       setInteraction({ mode: "segment_start" });
-    } else if (t === "line") {
+    } else if (next === "line") {
       setInteraction({ mode: "line_start"})
-    } else if (t === "ray") {
+    } else if (next === "ray") {
       setInteraction({ mode: "ray_start"})
-    } else if (t === "triangle") {
+    } else if (next === "triangle") {
       setInteraction({ mode: "triangle_p1" })
-    } else if (t === "quad") {
+    } else if (next === "quad") {
       setInteraction({ mode: "quad_p1" })
-    } else if (t === "circle") {
+    } else if (next === "circle") {
       setInteraction({ mode: "circle_center" })
-    } else if (t === "eraser") {
+    } else if (next === "eraser") {
       setInteraction({ mode: "eraser" })
-    } else if (t === "move") {
+    } else if (next === "move") {
       setInteraction({ mode: "move" })
     } else  {
       setInteraction({ mode: "idle" });
@@ -647,8 +650,8 @@ function App() {
         problem.addSegment(interaction.first.id, second.id);
         // Both endpoints are placed; now ask names for the new ones, in order.
         const queue: NamingTask[] = [];
-        if (interaction.first.label === null) queue.push(pointNamingTask(interaction.first, "Name the first point"));
-        if (second.label === null) queue.push(pointNamingTask(second, "Name the second point"));
+        if (interaction.first.label === null) queue.push(pointNamingTask(interaction.first, "naming.firstPoint"));
+        if (second.label === null) queue.push(pointNamingTask(second, "naming.secondPoint"));
         const tangentTask = tangentNamingTask(snappedCoords.touch);
         if (tangentTask !== null) queue.push(tangentTask);
         if (queue.length > 0) {
@@ -674,8 +677,8 @@ function App() {
         // The line itself has no name — it is referred to through its points,
         // so only the endpoints may need naming.
         const queue: NamingTask[] = [];
-        if (interaction.first.label === null) queue.push(pointNamingTask(interaction.first, "Name the first point"));
-        if (second.label === null) queue.push(pointNamingTask(second, "Name the second point"));
+        if (interaction.first.label === null) queue.push(pointNamingTask(interaction.first, "naming.firstPoint"));
+        if (second.label === null) queue.push(pointNamingTask(second, "naming.secondPoint"));
         const tangentTask = tangentNamingTask(snappedCoords.touch);
         if (tangentTask !== null) queue.push(tangentTask);
         if (queue.length > 0) {
@@ -700,8 +703,8 @@ function App() {
         // Порядок важен: первая точка — начало луча.
         problem.addExplicitRay(interaction.first.id, second.id);
         const queue: NamingTask[] = [];
-        if (interaction.first.label === null) queue.push(pointNamingTask(interaction.first, "Name the start of the ray"));
-        if (second.label === null) queue.push(pointNamingTask(second, "Name the second point"));
+        if (interaction.first.label === null) queue.push(pointNamingTask(interaction.first, "naming.rayStart"));
+        if (second.label === null) queue.push(pointNamingTask(second, "naming.secondPoint"));
         const tangentTask = tangentNamingTask(snappedCoords.touch);
         if (tangentTask !== null) queue.push(tangentTask);
         if (queue.length > 0) {
@@ -741,9 +744,9 @@ function App() {
         }
         problem.addTriangle(p1.id, p2.id, p3.id);
         const queue: NamingTask[] = [];
-        if (p1.label === null) queue.push(pointNamingTask(p1, "Name the first vertex"));
-        if (p2.label === null) queue.push(pointNamingTask(p2, "Name the second vertex"));
-        if (p3.label === null) queue.push(pointNamingTask(p3, "Name the third vertex"));
+        if (p1.label === null) queue.push(pointNamingTask(p1, "naming.vertexFirst"));
+        if (p2.label === null) queue.push(pointNamingTask(p2, "naming.vertexSecond"));
+        if (p3.label === null) queue.push(pointNamingTask(p3, "naming.vertexThird"));
         if (queue.length > 0) {
           setInteraction({ mode: "naming_queue", queue, returnTo: "triangle_p1" });
         } else {
@@ -805,8 +808,8 @@ function App() {
         problem.addSegment(p4.id, p1.id);
         const queue: NamingTask[] = [];
         const vertices = [p1, p2, p3, p4];
-        const titles = ["Name the first vertex", "Name the second vertex",
-          "Name the third vertex", "Name the fourth vertex"];
+        const titles: Key[] = ["naming.vertexFirst", "naming.vertexSecond",
+          "naming.vertexThird", "naming.vertexFourth"];
         vertices.forEach((v, i) => {
           if (v.label === null) queue.push(pointNamingTask(v, titles[i]!));
         });
@@ -835,7 +838,7 @@ function App() {
         problem.addCircle(center.id, radius);
         // Именуем только центр, если он ещё безымянный.
         const queue: NamingTask[] = [];
-        if (center.label === null) queue.push(pointNamingTask(center, "Name the center"));
+        if (center.label === null) queue.push(pointNamingTask(center, "naming.center"));
         if (queue.length > 0) {
           setInteraction({ mode: "naming_queue", queue, returnTo: "circle_center" });
         } else {
@@ -938,12 +941,14 @@ function App() {
     setVersion(v => v + 1);
   }
 
+  // Новое условие или цель сразу запускают вывод: жать Solve вручную не нужно.
+  // Кнопка остаётся — ею удобно пересчитать после правок чертежа.
   function handleAdd() {
-    setVersion(v => v + 1);
+    handleSolve();
   }
 
   function handleSetGoal() {
-    setVersion(v => v + 1);
+    handleSolve();
   }
 
   function getHint(): string | null {
@@ -951,52 +956,56 @@ function App() {
       case "idle":
         return null;
       case "placing_point":
-        return "Click anywhere to place a point";
+        return t("hint.placingPoint");
       case "segment_start":
-        return "Select or create the starting point of the segment";
+        return t("hint.segmentStart");
       case "segment_end":
-        return "Select or create the endpoint of the segment";
+        return t("hint.segmentEnd");
       case "line_start":
-        return "Select or create the first point on the new line";
+        return t("hint.lineStart");
       case "line_end":
-        return "Select or create the second point on the new line";
+        return t("hint.lineEnd");
       case "ray_start":
-        return "Select or create the starting point of the ray";
+        return t("hint.rayStart");
       case "ray_end":
-        return "Select or create a second point the ray passes through";
+        return t("hint.rayEnd");
       case "triangle_p1":
-        return "Select or create the first vertex of the triangle";
+        return t("hint.triangleFirst");
       case "triangle_p2":
-        return "Select or create the second vertex";
+        return t("hint.vertexSecond");
       case "triangle_p3":
-        return "Select or create the third vertex";
+        return t("hint.vertexThird");
       case "quad_p1":
-        return "Select or create the first vertex of the quadrilateral";
+        return t("hint.quadFirst");
       case "quad_p2":
-        return "Select or create the second vertex";
+        return t("hint.vertexSecond");
       case "quad_p3":
-        return "Select or create the third vertex";
+        return t("hint.vertexThird");
       case "quad_p4":
-        return "Select or create the fourth vertex";
+        return t("hint.vertexFourth");
       case "circle_center":
-        return "Select or create the center of the circle";
+        return t("hint.circleCenter");
       case "circle_through":
-        return "Select or create a point the circle passes through";
+        return t("hint.circleThrough");
       case "eraser":
-        return "Click a point or line to erase it";
+        return t("hint.eraser");
       case "move":
-        return "Drag a point to move it";
+        return t("hint.move");
       case "naming":
       case "naming_queue":
         return null; // the dialog is the hint
     }
   }
 
+  const lang = useLanguage();
 
   const conflicts = validate(problem);
   return (
     <div className="app">
-      <h1 className="app-title">My Geometry</h1>
+      <div className="title-container">
+        <h1 className="app-title">{t("app.title")}</h1>
+        <button className="lang-button" onClick={toggleLanguage}>{lang === "en" ? "EN" : "RU" }</button>
+      </div>
       <Canvas
         problem={problem}
         onClick={handleClick}
@@ -1038,13 +1047,13 @@ function App() {
       />
       {confirmClear ? (
         <div className={`hint ${attentionClass(nudge)}`}>
-          <div className="hint-content">Are you sure you want to erase the whole drawing?</div>
+          <div className="hint-content">{t("clear.confirm")}</div>
           <div className="hint-actions">
             <button className="hint-btn-done" style={{marginTop: "10px"}} onClick={handleClearConfirmed}>
-              Erase
+              {t("clear.erase")}
             </button>
             <button className="hint-btn-cancel" style={{marginTop: "10px"}} onClick={() => setConfirmClear(false)}>
-              Cancel
+              {t("common.cancel")}
             </button>
           </div>
         </div>
@@ -1054,7 +1063,7 @@ function App() {
           {/* <hr className="hint-divider" /> */}
           <div className="hint-actions">
             <button className="hint-btn-cancel" style={{marginTop: "10px"}} onClick={handleCancel}>
-              Cancel
+              {t("common.cancel")}
             </button>
           </div>
         </div>
@@ -1062,7 +1071,7 @@ function App() {
       {interaction.mode === "naming" && (
         <NameDialog
           key={interaction.point.id}
-          title="Name the new point"
+          title={t("naming.newPoint")}
           placeholder={nextFreeLabel(problem)}
           onSubmit={(value) => problem.renamePoint(interaction.point.id, value)}
           onClose={handleNamingClose}
@@ -1073,7 +1082,7 @@ function App() {
       {interaction.mode === "naming_queue" && interaction.queue[0] !== undefined && (
         <NameDialog
           key={interaction.queue[0].key}
-          title={interaction.queue[0].title}
+          title={t(interaction.queue[0].title)}
           placeholder={interaction.queue[0].placeholder()}
           onSubmit={interaction.queue[0].submit}
           onClose={handleNamingClose}

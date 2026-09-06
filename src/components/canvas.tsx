@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Problem } from "../engine/problem";
 import type { Point } from "../engine/types";
 import type { EraseTarget } from "../App";
@@ -67,8 +68,23 @@ const getExtendedCoordinates = (
 export function Canvas({ problem, onClick, onMouseMove, onMouseLeave, onMouseDown, onMouseUp,
                         view, panning, firstPoint, previewVertices, previewClose, circleCenter,
                         touchPointId, touchGhost, blinkPointId, eraseHover, movePreview, outlinePointId, curSnapped, Tool }: CanvasProps) {
+    const svgRef = useRef<SVGSVGElement>(null);
+
+    // Колесо над холстом не прокручивает страницу: чертёж живёт в своих
+    // координатах, и увод содержимого под курсором только мешает.
+    // Слушатель нативный и непассивный — у React-обработчика onWheel
+    // preventDefault не срабатывает.
+    useEffect(() => {
+        const element = svgRef.current;
+        if (element === null) return;
+        const block = (e: WheelEvent) => { e.preventDefault(); };
+        element.addEventListener("wheel", block, { passive: false });
+        return () => { element.removeEventListener("wheel", block); };
+    }, []);
+
     return (
         <svg
+            ref={svgRef}
             className={`canvas ${Tool === "cursor" ? (panning ? "canvas-panning" : "canvas-pannable") : ""}`}
             width="100%"
             height="100%"

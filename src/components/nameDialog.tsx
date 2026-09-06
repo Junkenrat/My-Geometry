@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { attentionClass } from "./attention";
+import { t } from "../i18n";
 
 interface NameDialogProps {
     // Название сообщения вроде "Name the first point" или "Name the second point".
@@ -24,7 +25,7 @@ export function NameDialog({ title, placeholder, onSubmit, onClose, onAuto, nudg
 
     function handleConfirm() {
         if (value.trim() === "") {
-            setError(`Please enter a name or choose "Auto"`);
+            setError(t("naming.errorEmpty"));
             return;
         }
         const err = onSubmit(value.trim());
@@ -57,9 +58,9 @@ export function NameDialog({ title, placeholder, onSubmit, onClose, onAuto, nudg
                 onKeyDown={handleKeyDown}
             />
             <div className="hint-actions">
-                <button className="hint-btn-done" onClick={handleConfirm}>Done</button>
-                <button className="hint-btn-cancel" onClick={() => {onAuto(); onClose();}}>Auto</button>
-                <button className="hint-btn-cancel" style={{ marginLeft: "auto"}}>Cancel</button> 
+                <button className="hint-btn-done" onClick={handleConfirm}>{t("common.done")}</button>
+                <button className="hint-btn-cancel" onClick={() => {onAuto(); onClose();}}>{t("common.auto")}</button>
+                <button className="hint-btn-cancel" style={{ marginLeft: "auto"}}>{t("common.cancel")}</button> 
                 {/* <button className="hint-btn-cancel" style={{ marginLeft: "auto" }} onClick={onClose}>Skip</button> */}
                 {/* Кнопку "Skip" пока решено убрать, т.к. не ясно, что делать с безымянными объектами */}
             </div>

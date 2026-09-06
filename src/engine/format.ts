@@ -5,33 +5,43 @@ import type { Segment, Angle, Triangle, Line, Point } from "./types";
 import { angleName, carrierName, pointName, segmentName, triangleName } from "./types";
 import type { Condition } from "./conditions";
 import type { Relation } from "./relations";
+import { t, type Key } from "../i18n";
 
-// Служебные имена теорем и их названия
-export const THEOREM_NAMES: Record<string, string> = {
-    pythagoras: "Pythagorean theorem",
-    intersection: "Point of intersection",
-    segment_addition: "Segment addition",
-    pointOnSegment: "Point on segment",
-    vertical_angles: "Vertical angles",
-    linear_pair: "Linear pair",
-    triangle_angle_sum: "Sum of angles in a triangle",
-    right_angle: "Right angle",
-    perpendicular_angles: "Perpendicular segments",
-    right_triangle_from_angle: "Right angle in a triangle",
-    perpendicular_from_angle: "Perpendicularity from a right angle",
-    equilateral: "Equilateral triangle",
-    alternate_angles: "Alternate angles at a transversal",
-    cointerior_angles: "Co-interior angles at a transversal",
-    parallel_from_angles: "Parallel lines from the angles at a transversal",
-    perpendicular_through_parallel: "Perpendicular to one of two parallels",
-    parallel_transitive: "Both parallel to the same line",
-    parallel_from_perpendiculars: "Both perpendicular to the same line",
-    given: "By the given condition"
+// Служебные имена теорем и ключи их названий в словаре. Ключ, а не готовая
+// строка: таблица создаётся один раз при импорте, а язык может смениться позже.
+const THEOREM_KEYS: Record<string, Key> = {
+    pythagoras: "theorem.pythagoras",
+    intersection: "theorem.intersection",
+    segment_addition: "theorem.segment_addition",
+    pointOnSegment: "theorem.pointOnSegment",
+    vertical_angles: "theorem.vertical_angles",
+    linear_pair: "theorem.linear_pair",
+    triangle_angle_sum: "theorem.triangle_angle_sum",
+    right_angle: "theorem.right_angle",
+    perpendicular_angles: "theorem.perpendicular_angles",
+    right_triangle_from_angle: "theorem.right_triangle_from_angle",
+    perpendicular_from_angle: "theorem.perpendicular_from_angle",
+    equilateral: "theorem.equilateral",
+    alternate_angles: "theorem.alternate_angles",
+    cointerior_angles: "theorem.cointerior_angles",
+    parallel_from_angles: "theorem.parallel_from_angles",
+    perpendicular_through_parallel: "theorem.perpendicular_through_parallel",
+    parallel_transitive: "theorem.parallel_transitive",
+    parallel_from_perpendiculars: "theorem.parallel_from_perpendiculars",
+    given: "theorem.given",
+};
+
+// Свойства треугольника, которым хватает одного имени фигуры.
+const TRIANGLE_PROPERTY_KEYS: Record<"equilateral" | "obtuse" | "acute", Key> = {
+    equilateral: "fact.equilateral",
+    obtuse: "fact.obtuse",
+    acute: "fact.acute",
 };
 
 // возвращает название теоремы по служебному имени
 export function getTheoremName(id: string): string {
-    return THEOREM_NAMES[id] ?? id;
+    const key = THEOREM_KEYS[id];
+    return key === undefined ? id : t(key);
 }
 
 // Округление до 6 знаков после запятой
@@ -63,15 +73,18 @@ export function formatFact(fact: Fact): string | null {
     } else if (fact.kind === "parallel") {
         return `${carrierName(fact.a)} ∥ ${carrierName(fact.b)}`;
     } else if (fact.kind === "right_triangle") {
-        return `${formatTriangleName(fact.triangle)} is right-angled at ${pointName(fact.rightAngleAt)}`;
-    } else if (fact.kind === "equilateral") {
-        return `${formatTriangleName(fact.triangle)} is equilateral`;
-    } else if (fact.kind === "obtuse") {
-        return `${formatTriangleName(fact.triangle)} is obtuse`;
-    } else if (fact.kind === "acute") {
-        return `${formatTriangleName(fact.triangle)} is acute`;
+        return t("fact.rightTriangle", {
+            name: formatTriangleName(fact.triangle),
+            vertex: pointName(fact.rightAngleAt),
+        });
+    } else if (fact.kind === "equilateral" || fact.kind === "obtuse" || fact.kind === "acute") {
+        return t(TRIANGLE_PROPERTY_KEYS[fact.kind], { name: formatTriangleName(fact.triangle) });
     } else if (fact.kind === "between") {
-        return `${pointName(fact.point)} is between ${pointName(fact.from)} and ${pointName(fact.to)}`;
+        return t("fact.between", {
+            point: pointName(fact.point),
+            from: pointName(fact.from),
+            to: pointName(fact.to),
+        });
     } else {
         return null;
     }
@@ -107,19 +120,19 @@ export function formatRelation(problem: Problem, rel: Relation): string | null {
 
 export function formatGoal(goal: Goal): string {
     if (goal.kind === "length") {
-        return `Find ${formatSegmentName(goal.segment)}`;
+        return t("goal.find", { object: formatSegmentName(goal.segment) });
     }
     if (goal.kind === "angle") {
-        return `Find ${formatAnglePoints(goal.angle)}`;
+        return t("goal.find", { object: formatAnglePoints(goal.angle) });
     }
-    return `Prove ${formatConditions(goal.condition) ?? "?"}`;
+    return t("goal.prove", { statement: formatConditions(goal.condition) ?? "?" });
 }
 
 // Как цель выглядит в самом поле ввода: "AB — ?" / "Prove: AB = CD".
 export function formatGoalInput(goal: Goal): string {
-    if (goal.kind === "length") return `${formatSegmentName(goal.segment)} — ?`;
-    if (goal.kind === "angle") return `${formatAnglePoints(goal.angle)} — ?`;
-    return `Prove: ${formatConditions(goal.condition) ?? "?"}`;
+    if (goal.kind === "length") return t("goal.inputFind", { object: formatSegmentName(goal.segment) });
+    if (goal.kind === "angle") return t("goal.inputFind", { object: formatAnglePoints(goal.angle) });
+    return t("goal.inputProve", { statement: formatConditions(goal.condition) ?? "?" });
 }
 
 export function formatAnglePoints(a: { vertex: Point; thr1: Point; thr2: Point }): string {
@@ -132,11 +145,13 @@ export function formatConditions(condition: Condition): string | null {
     } else if (condition.kind === "angle_value") {
         return `${formatAnglePoints(condition.angle)} = ${formatNumber(condition.value)}°`;
     } else if (condition.kind === "triangle") {
-        const t = condition.triangle;
-        const name = triangleName(t.p1, t.p2, t.p3);
+        const tri = condition.triangle;
+        const name = triangleName(tri.p1, tri.p2, tri.p3);
         const property = condition.property;
-        if (property.kind === "right") return `${name} is right-angled at ${pointName(property.vertex)}`;
-        return `${name} is ${property.kind}`;
+        if (property.kind === "right") {
+            return t("fact.rightTriangle", { name, vertex: pointName(property.vertex) });
+        }
+        return t(TRIANGLE_PROPERTY_KEYS[property.kind], { name });
     } else if (condition.kind === "equation") {
         const equation = condition.equation;
         if (equation.kind === "segments_ratio") {
