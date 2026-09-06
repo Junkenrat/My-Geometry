@@ -64,35 +64,36 @@ export const ru: Record<keyof typeof en, string> = {
     // --- Вкладка решения ---
     "solution.title": "Решение",
     "solution.empty": "Выкладок пока нет — нажмите «Решить».",
-    // Источник — это целое утверждение, а не объект, поэтому он уходит в
-    // скобки: «для △ABC — прямоугольный» требовало бы родительного падежа,
-    // которого у готовой фразы нет. Порядок слов другой, чем в en — ради
-    // этого фразы и хранятся целиком, а не собираются из кусков.
-    "solution.claimWithSource": "{theorem} (известно: {source}):",
+    "solution.claimWithSource": "так как {source}, {theorem}:",
     "solution.claim": "{theorem}:",
     "solution.answer": "Ответ",
     "solution.proved": "{statement} — доказано",
 
     // --- Названия теорем ---
-    "theorem.pythagoras": "Теорема Пифагора",
-    "theorem.intersection": "Точка пересечения",
-    "theorem.segment_addition": "Сложение отрезков",
-    "theorem.pointOnSegment": "Точка на отрезке",
-    "theorem.vertical_angles": "Вертикальные углы",
-    "theorem.linear_pair": "Смежные углы",
-    "theorem.triangle_angle_sum": "По свойству суммы углов треугольника",
-    "theorem.right_angle": "Прямой угол",
-    "theorem.perpendicular_angles": "Перпендикулярные отрезки",
-    "theorem.right_triangle_from_angle": "Прямой угол в треугольнике",
-    "theorem.perpendicular_from_angle": "Перпендикулярность из прямого угла",
-    "theorem.equilateral": "Равносторонний треугольник",
-    "theorem.alternate_angles": "Накрест лежащие углы при секущей",
-    "theorem.cointerior_angles": "Односторонние углы при секущей",
-    "theorem.parallel_from_angles": "Параллельность прямых по углам при секущей",
-    "theorem.perpendicular_through_parallel": "Перпендикуляр к одной из двух параллельных",
-    "theorem.parallel_transitive": "Обе параллельны одной прямой",
-    "theorem.parallel_from_perpendiculars": "Обе перпендикулярны одной прямой",
-    "theorem.given": "По условию",
+    // Со строчной буквы: в шаге с источником название стоит в середине фразы
+    // («так как △ABC — прямоугольный, по теореме Пифагора:»), а в шаге без
+    // источника — в начале. Заглавную в начале даёт CSS (.step-claim
+    // ::first-letter), поэтому обе позиции обслуживает одна строка.
+    // В скобках сообщений о противоречиях строчная тоже уместнее.
+    "theorem.pythagoras": "по теореме Пифагора",
+    "theorem.intersection": "по определению точки пересечения",
+    "theorem.segment_addition": "по свойству сложения отрезков",
+    "theorem.pointOnSegment": "по свойству точки на отрезке",
+    "theorem.vertical_angles": "по свойству вертикальных углов",
+    "theorem.linear_pair": "по свойству смежных углов",
+    "theorem.triangle_angle_sum": "по свойству суммы углов треугольника",
+    "theorem.right_angle": "по определению прямого угла",
+    "theorem.perpendicular_angles": "по свойству перпендикулярных отрезков",
+    "theorem.right_triangle_from_angle": "по признаку прямоугольного треугольника",
+    "theorem.perpendicular_from_angle": "по признаку перпендикулярности",
+    "theorem.equilateral": "по свойству равностороннего треугольника",
+    "theorem.alternate_angles": "по свойству накрест лежащих углов при секущей",
+    "theorem.cointerior_angles": "по свойству односторонних углов при секущей",
+    "theorem.parallel_from_angles": "по признаку параллельности прямых",
+    "theorem.perpendicular_through_parallel": "по свойству перпендикуляра к двум параллельным",
+    "theorem.parallel_transitive": "по свойству двух прямых, параллельных третьей",
+    "theorem.parallel_from_perpendiculars": "по свойству прямых, перпендикулярных третьей",
+    "theorem.given": "по условию",
 
     // --- Факты и свойства фигур ---
     // Про вершину прямого угла по-русски не пишем, {vertex} здесь не нужен.
@@ -142,7 +143,7 @@ export const ru: Record<keyof typeof en, string> = {
 
     // --- Противоречия в условии ---
     "conflict.valueMismatch": "{label} = {a}, но при этом {label} = {b}{via}",
-    "conflict.via": " (через {theorem})",
+    "conflict.via": " ({theorem})",
     "conflict.mustBeEqual": "{aLabel} = {a} и {bLabel} = {b}, но они должны быть равны ({theorem})",
     "conflict.ratioMismatch":
         "{aLabel} = {a} и {bLabel} = {b}, но {aLabel} / {bLabel} должно быть {value} ({theorem})",
