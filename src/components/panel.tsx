@@ -1,4 +1,4 @@
-import { formatConditions, formatFact, formatQuantity } from "../engine/format";
+import { formatConditions, formatFact, formatQuantity, formatRelation } from "../engine/format";
 import { isMeaningfulFact } from "../engine/facts";
 import { Problem } from "../engine/problem";
 import { AddStatement } from "./addStatement";
@@ -35,6 +35,16 @@ export function Panel({problem, onSolve, conflicts, onAdd, onSetGoal}: PanelProp
         ...problem.quantities.assignments
             .filter(a => a.reason.kind === "derived")
             .map(a => formatQuantity(a.quantity)),
+        // Равенства, выведенные теоремами. Показываем, только пока значения
+        // неизвестны: иначе рядом уже стоят сами числа, и строка лишняя.
+        // Без этого Solve на одной лишь параллельности выглядел бы безрезультатным.
+        ...Array.from(problem.relations.values())
+            .filter(r => r.kind === "equal" && r.reason.theorem !== "given")
+            .filter(r => r.kind === "equal"
+                && problem.quantities.value(r.a) === null
+                && problem.quantities.value(r.b) === null)
+            .map(r => formatRelation(problem, r))
+            .filter((s): s is string => s !== null),
         ...problem.facts
             .filter(f => f.reason.kind === "derived" && isMeaningfulFact(f))
             .map(f => formatFact(f))

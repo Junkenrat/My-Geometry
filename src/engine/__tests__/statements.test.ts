@@ -94,7 +94,7 @@ describe("parsing complete statements", () => {
         expect(state.error).toBeNull();
         expect(state.condition).toEqual({
             kind: "fact",
-            fact: { kind: "perpendicular", seg1: AB, seg2: CD, reason: { kind: "given" } },
+            fact: { kind: "perpendicular", a: AB, b: CD, reason: { kind: "given" } },
         });
     });
 
@@ -111,7 +111,7 @@ describe("parsing complete statements", () => {
         const state = parseStatementInput(p, "ba par dc");
         expect(state.condition).toEqual({
             kind: "fact",
-            fact: { kind: "parallel", seg1: AB, seg2: CD, reason: { kind: "given" } },
+            fact: { kind: "parallel", a: AB, b: CD, reason: { kind: "given" } },
         });
     });
 

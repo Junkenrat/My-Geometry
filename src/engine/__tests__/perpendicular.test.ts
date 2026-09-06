@@ -9,7 +9,7 @@ import type { Segment } from "../types";
 function perp(p: Problem, a: Segment, b: Segment) {
     p.addCondition({
         kind: "fact",
-        fact: { kind: "perpendicular", seg1: a, seg2: b, reason: { kind: "given" } },
+        fact: { kind: "perpendicular", a: a, b: b, reason: { kind: "given" } },
     });
 }
 
@@ -147,7 +147,7 @@ describe("perpendicularFromAngle (reverse bridge)", () => {
         p.addSegment(A.id, B.id);
         p.addSegment(B.id, C.id);
         p.setGoal({ kind: "prove", condition: { kind: "fact", fact: { kind: "perpendicular",
-            seg1: p.getSegment(A.id, B.id)!, seg2: p.getSegment(B.id, C.id)!, reason: { kind: "given" } } } });
+            a: p.getSegment(A.id, B.id)!, b: p.getSegment(B.id, C.id)!, reason: { kind: "given" } } } });
         p.setAngle(p.addAngle(B.id, A.id, C.id), 90);
         expect(solve(p)).toBe(true);
     });

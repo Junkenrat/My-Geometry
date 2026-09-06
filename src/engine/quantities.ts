@@ -1,4 +1,5 @@
 import type { Fact } from "./facts";
+import type { Relation } from "./relations";
 
 // Числовое значение объекта
 export type QuantityId = string;
@@ -10,7 +11,9 @@ export type Premise =
 
 export type QReason =
     | { kind: "given" }
-    | { kind: "derived"; theorem: string; premises: Premise[] };
+    // relation — то самое уравнение, из которого получено число. Хранится,
+    // чтобы вкладка Solution могла показать выкладку, а не только результат.
+    | { kind: "derived"; theorem: string; premises: Premise[]; relation?: Relation };
 
 export interface Quantity {
     readonly id: QuantityId;

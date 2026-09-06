@@ -1,7 +1,8 @@
 import type { AnglePoints, Condition, TriangleProperty } from "./conditions";
 import type { Goal } from "./facts";
 import type { Problem } from "./problem";
-import type { Point, Segment } from "./types";
+import type { Carrier, Line, Point, Ray, Segment } from "./types";
+import { carrierName, carrierPoints } from "./types";
 
 // User-typed statements about segments, angles and triangles:
 //   AB = 5              length
@@ -132,8 +133,21 @@ function tokenize(text: string): { tokens: Token[]; tail: string } {
 // shape to AnglePoints, so it drops straight into a Condition without a
 // materialized Angle (the parser must not mutate the drawing).
 type AngleRef = AnglePoints;
+// Носитель без длины: нарисованный луч или прямая. Отрезок сюда не попадает —
+// он и так носитель, но при этом ещё и измерим, поэтому у него свой вид.
 type ObjRef = { kind: "Segment", object: Segment } |
+    { kind: "Carrier", object: Ray | Line } |
     { kind: "Angle", object: AngleRef };
+
+// Отрезок, луч и прямая одинаково годятся для ⊥ и ∥.
+function isCarrierKind(obj: ObjRef): boolean {
+    return obj.kind === "Segment" || obj.kind === "Carrier";
+}
+
+function carrierOf(obj: ObjRef): Carrier {
+    if (obj.kind === "Angle") throw new Error("an angle is not a carrier");
+    return obj.object;
+}
 
 interface ParseData {
     obj1?: ObjRef
@@ -145,7 +159,7 @@ interface ParseData {
     vertex?: Point;   // the right-angle vertex of a right triangle
 }
 
-function objType(obj: ObjRef): "Segment" | "Angle" {
+function objType(obj: ObjRef): "Segment" | "Carrier" | "Angle" {
     return obj.kind;
 }
 
@@ -169,7 +183,7 @@ function sameAngleRef(a: AngleRef, b: AngleRef): boolean {
 }
 
 function sameObject(a: ObjRef, b: ObjRef): boolean {
-    if (a.kind === "Segment" && b.kind === "Segment") return a.object === b.object;
+    if (isCarrierKind(a) && isCarrierKind(b)) return a.object === b.object;
     if (a.kind === "Angle" && b.kind === "Angle") return sameAngleRef(a.object, b.object);
     return false;
 }
@@ -177,6 +191,22 @@ function sameObject(a: ObjRef, b: ObjRef): boolean {
 // Human-readable canonical name for the parts/canonical string.
 function objName(obj: ObjRef, typed: string): string {
     return obj.kind === "Angle" ? "∠" + typed.toUpperCase() : typed.toUpperCase();
+}
+
+// Имена всех носителей без длины: они предлагаются только для ⊥ и ∥.
+function carrierCandidates(problem: Problem): { name: string; object: Ray | Line }[] {
+    const result: { name: string; object: Ray | Line }[] = [];
+    const add = (object: Ray | Line) => {
+        const [a, b] = carrierPoints(object);
+        if (a.label === null || b.label === null) return;
+        if (problem.getSegment(a.id, b.id) !== undefined) return; // отрезок уже предложен
+        const name = carrierName(object);
+        if (result.some(r => r.name === name)) return;
+        result.push({ name, object });
+    };
+    for (const ray of problem.rays.values()) if (ray.kind === "drawn") add(ray);
+    for (const line of problem.lines.values()) if (line.kind === "drawn") add(line);
+    return result;
 }
 
 // Every angle visible on the drawing: for each labelled vertex, all pairs of
@@ -196,6 +226,13 @@ function angleCandidates(problem: Problem): AngleRef[] {
     for (const ray of problem.rays.values()) {
         addArm(ray.start, ray.through);
     }
+    // На прямой любая её точка видна из любой другой.
+    for (const line of problem.lines.values()) {
+        if (line.kind !== "drawn") continue;
+        const on = Array.from(problem.points.values())
+            .filter(p => onSameLine(p, line.p1, line.p2));
+        for (const v of on) for (const other of on) addArm(v, other);
+    }
     const result: AngleRef[] = [];
     for (const [vid, set] of arms) {
         const vertex = problem.points.get(vid);
@@ -212,7 +249,7 @@ function angleCandidates(problem: Problem): AngleRef[] {
     return result;
 }
 
-function expectedType(parse: ParseData): "Segment" | "Angle" | "Any" {
+function expectedType(parse: ParseData): "Segment" | "Carrier" | "Angle" | "Any" {
     if (parse.obj1 === undefined) return "Any";
     return objType(parse.obj1);
 }
@@ -271,13 +308,59 @@ function resolveAngle(problem: Problem, name: string): AngleRef | undefined {
     // Проверяем, построены ли плечи угла: отрезок или луч вершина-точка.
     // Если нет — ошибка. В будущем сделать достройку
     const vertex = found[1];
-    const armExists = (arm: Point) =>
-        problem.getSegment(vertex.id, arm.id) !== undefined || problem.getRay(vertex.id, arm.id) !== undefined;
-    if (!armExists(found[0]) || !armExists(found[2])) {
+    if (!armExists(problem, vertex, found[0]) || !armExists(problem, vertex, found[2])) {
         return undefined;
     }
     if (found[2].id < found[0].id) [found[2], found[0]] = [found[0], found[2]]; // Детерминизм по id
     return { vertex: found[1], thr1: found[0], thr2: found[2] };
+}
+
+// Построено ли из вершины направление на точку: отрезок, луч или прямая.
+// Прямая тоже годится — на ней угол виден ничуть не хуже, чем на отрезке.
+function armExists(problem: Problem, vertex: Point, arm: Point): boolean {
+    if (vertex === arm) return false;
+    if (problem.getSegment(vertex.id, arm.id) !== undefined) return true;
+    if (problem.getRay(vertex.id, arm.id) !== undefined) return true;
+    for (const line of problem.lines.values()) {
+        if (line.kind !== "drawn") continue;
+        if (onSameLine(vertex, line.p1, line.p2) && onSameLine(arm, line.p1, line.p2)) return true;
+    }
+    return false;
+}
+
+function onSameLine(p: Point, a: Point, b: Point): boolean {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    return Math.abs(dx * (p.y - a.y) - dy * (p.x - a.x)) < 1e-6;
+}
+
+// Пара точек по двухбуквенному имени.
+function resolvePair(problem: Problem, name: string): [Point, Point] | undefined {
+    if (name.length !== 2) return undefined;
+    const found: Point[] = [];
+    for (const letter of name.toUpperCase()) {
+        for (const point of problem.points.values()) {
+            if (point.label === letter) { found.push(point); break; }
+        }
+    }
+    const [a, b] = found;
+    return a !== undefined && b !== undefined && a !== b ? [a, b] : undefined;
+}
+
+// Носитель без длины: нарисованный луч (в любую сторону) или прямая через
+// обе точки. Ищется, только когда отрезка с таким именем нет.
+function resolveCarrier(problem: Problem, name: string): Ray | Line | undefined {
+    const pair = resolvePair(problem, name);
+    if (pair === undefined) return undefined;
+    const [a, b] = pair;
+    for (const ray of problem.rays.values()) {
+        if (ray.kind !== "drawn") continue;
+        if ((ray.start === a && ray.through === b) || (ray.start === b && ray.through === a)) return ray;
+    }
+    for (const line of problem.lines.values()) {
+        if (line.kind !== "drawn") continue;
+        if ((line.p1 === a && line.p2 === b) || (line.p1 === b && line.p2 === a)) return line;
+    }
+    return undefined;
 }
 
 // Consumes one token into the parse; pushes its canonical spelling into parts.
@@ -309,6 +392,10 @@ function consume(problem: Problem, parse: ParseData, token: Token, parts: string
             if (token.text.length === 2) {
                 const seg = resolveSegment(problem, token.text);
                 if (seg !== undefined) obj = { kind: "Segment", object: seg };
+                else {
+                    const carrier = resolveCarrier(problem, token.text);
+                    if (carrier !== undefined) obj = { kind: "Carrier", object: carrier };
+                }
             } else if (token.text.length === 3) {
                 const ang = resolveAngle(problem, token.text);
                 if (ang !== undefined) obj = { kind: "Angle", object: ang };
@@ -320,7 +407,13 @@ function consume(problem: Problem, parse: ParseData, token: Token, parts: string
             if (parse.obj1 === undefined) {
                 parse.obj1 = obj;
             } else {
-                if (objType(obj) !== objType(parse.obj1)) return "Cannot compare a length and an angle";
+                // ⊥ и ∥ говорят о направлении: отрезок, луч и прямая равноправны.
+                // Равенство и отношение — о длине, и её нет ни у луча, ни у прямой.
+                const aboutDirection = parse.op === "⊥" || parse.op === "∥";
+                const compatible = aboutDirection
+                    ? isCarrierKind(obj) && isCarrierKind(parse.obj1)
+                    : objType(obj) === objType(parse.obj1);
+                if (!compatible) return "Cannot compare a length and an angle";
                 if (sameObject(obj, parse.obj1)) return "Both sides refer to the same object";
                 parse.obj2 = obj;
             }
@@ -328,6 +421,11 @@ function consume(problem: Problem, parse: ParseData, token: Token, parts: string
             return null;
         }
         case "relation": {
+            // Отсечь "=" и "/" для луча и прямой: измерять там нечего.
+            if (token.kind === "op" && (token.op === "=" || token.op === "/")
+                && parse.obj1?.kind === "Carrier") {
+                return "A ray or a line has no length";
+            }
             // A triangle predicate (a plain word) reinterprets the 3-letter
             // object as a triangle instead of an angle.
             if (token.kind === "letters") {
@@ -414,7 +512,7 @@ function buildCondition(parse: ParseData): Condition {
         return {
             kind: "fact",
             fact: { kind: parse.op === "⊥" ? "perpendicular" : "parallel",
-                seg1: asSegment(obj1), seg2: asSegment(parse.obj2), reason: { kind: "given" } },
+                a: carrierOf(obj1), b: carrierOf(parse.obj2), reason: { kind: "given" } },
         };
     }
 
@@ -433,7 +531,7 @@ function buildCondition(parse: ParseData): Condition {
         if (obj1.kind === "Angle") {
             return { kind: "angle_value", angle: obj1.object, value: parse.value };
         }
-        return { kind: "value", target: { kind: "length", segment: obj1.object, value: parse.value } };
+        return { kind: "value", target: { kind: "length", segment: asSegment(obj1), value: parse.value } };
     }
 
     // ratio — segments only.
@@ -468,7 +566,16 @@ function suggest(
         const match = (a: string, b: string): string | null =>
             a.startsWith(filter) ? a : b.startsWith(filter) ? b : null;
 
-        if (want === "Segment" || want === "Any") {
+        // Луч и прямая годятся только для ⊥ и ∥: длины у них нет.
+        const aboutDirection = parse.op === "⊥" || parse.op === "∥";
+        if (want === "Carrier" || aboutDirection || want === "Any") {
+            for (const { name, object } of carrierCandidates(problem)) {
+                if (isSecond && parse.obj1!.kind === "Carrier" && object === parse.obj1!.object) continue;
+                if (!name.startsWith(filter)) continue;
+                push(name);
+            }
+        }
+        if (want === "Segment" || want === "Carrier" || aboutDirection || want === "Any") {
             for (const segment of problem.segments.values()) {
                 // Segments with unnamed endpoints cannot be referred to by text
                 if (segment.p1.label === null || segment.p2.label === null) continue;
@@ -491,9 +598,12 @@ function suggest(
     if (expected === "relation") {
         // ⊥, ∥ and ratio apply to segments only; an angle offers just "=".
         const forAngle = parse.obj1?.kind === "Angle";
+        // У луча и прямой нет длины, поэтому "=" и отношение им недоступны.
+        const forCarrier = parse.obj1?.kind === "Carrier";
         const filter = partial.toLowerCase();
         const relations: Suggestion[] = RELATION_SUGGESTIONS
             .filter(r => !forAngle || r.op === "=")
+            .filter(r => !forCarrier || r.op === "⊥" || r.op === "∥")
             .filter(r => r.typed.some(t => t.startsWith(filter)))
             .map(r => ({
                 label: r.label,

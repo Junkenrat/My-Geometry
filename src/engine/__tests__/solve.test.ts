@@ -94,7 +94,7 @@ describe("prove goals", () => {
         const AB = p.getSegment(A.id, B.id)!;
         const BC = p.getSegment(B.id, C.id)!;
         p.setGoal({ kind: "prove", condition: { kind: "fact",
-            fact: { kind: "perpendicular", seg1: AB, seg2: BC, reason: { kind: "given" } } } });
+            fact: { kind: "perpendicular", a: AB, b: BC, reason: { kind: "given" } } } });
         expect(solve(p)).toBe(false);
         p.setAngle(p.addAngle(B.id, A.id, C.id), 90);
         expect(solve(p)).toBe(true);

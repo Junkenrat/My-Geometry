@@ -12,6 +12,8 @@
   --border: #E6ECE9;
   --bold-border: #8C7A4F;
   --bg-darker: #D6D1C2;
+  /* акцент вкладки Solution: кружки шагов и плашка ответа */
+  --solution-accent: #D3E7DF;
   /* правая панель — 92vh по центру, значит зазор сверху и снизу (100-92)/2 */
   --panel-gap: 4vh;
   /* высота нижней плашки: кнопка 48 + отступы 2*8 + рамки 2*1 */
@@ -333,6 +335,11 @@ html, body, #root {
   background: var(--bg-darker);
 }
 
+.tool-btn-clear:hover {
+  background: #b3261e !important;
+  color: #ffffff !important;
+}
+
 .tool-active {
   background: var(--accent);
   color: white;
@@ -454,14 +461,31 @@ html, body, #root {
 } */
 
 /* мигание точки, чьё имя сейчас запрашивают */
+/* мигание точки, чьё имя запрашивают: цветом (белый <-> зелёный),
+   а не прозрачностью, чтобы точка всегда оставалась видимой */
 @keyframes point-blink {
-  from { opacity: 1; }
-  to   { opacity: 0.2; }
+  from { fill: #ffffff; }
+  to   { fill: #1F8A70; }
 }
 
 .point-blink {
   animation: point-blink 0.7s ease-in-out infinite alternate;
 }
+
+/* Окно требует ответа: на запрещённое действие мигаем рамкой и фоном.
+   Два класса с разными именами анимации — чтобы повторный отказ
+   перезапускал мигание, а не игнорировался как «та же анимация». */
+@keyframes attn-blink-a {
+  0%, 100% { border-color: var(--border); background: var(--bg-card); }
+  50%      { border-color: #1F8A70; background: #dff0ea; }
+}
+@keyframes attn-blink-b {
+  0%, 100% { border-color: var(--border); background: var(--bg-card); }
+  50%      { border-color: #1F8A70; background: #dff0ea; }
+}
+
+.attn-a { animation: attn-blink-a 0.22s ease-in-out 2; }
+.attn-b { animation: attn-blink-b 0.22s ease-in-out 2; }
 
 .name-dialog {
   position: fixed;
@@ -626,4 +650,78 @@ html, body, #root {
   margin-top: 4px;
   color: var(--green);
   font-size: 13px;
+}
+
+/* ---- Вкладка Solution: нумерованные шаги с крупными формулами ---- */
+.solution-step {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+/* номер шага в кружке слева */
+.step-number {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--solution-accent);
+  color: var(--green);
+  font-size: 15px;
+}
+
+.step-body {
+  flex: 1;
+  min-width: 0;
+}
+
+/* на чём основан шаг — обычным шрифтом */
+.step-claim {
+  font-size: 16px;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.step-source {
+  text-decoration: underline;
+  text-decoration-color: var(--bold-border);
+}
+
+.step-theorem {
+  color: var(--green);
+  text-decoration: underline;
+}
+
+/* выкладка — крупнее текста, чтобы читалась как формула */
+.step-formula {
+  font-size: 18px;
+  margin-top: 6px;
+  color: var(--text);
+  /* формулы с длинными именами (∠ABC + ∠ACB + ∠BAC = 180°) не влезают
+     в узкую панель: переносим по пробелам, то есть между слагаемыми */
+  overflow-wrap: break-word;
+}
+
+.solution-answer {
+  margin-top: 24px;
+  padding: 12px 16px;
+  background: var(--solution-accent);
+  border: 1px solid var(--green);
+  border-radius: 12px;
+}
+
+.answer-label {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--green);
+}
+
+.answer-value {
+  margin-top: 4px;
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--green);
 }

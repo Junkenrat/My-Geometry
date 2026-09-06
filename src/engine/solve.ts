@@ -1,17 +1,21 @@
 import { Problem } from "./problem";
 import { propagate } from "./relations";
-import { factsEqual } from "./facts";
+import { factsEqual, sameDirectionFact } from "./facts";
 import type { Condition } from "./conditions";
 import {
     betweennessLength, equilateralTriangle, intersections, linearPairs,
-    pointOnSegment, perpendicularAngles, perpendicularFromAngle, pythagoras,
-    rightTriangleFromAngle, triangleAngleSum, verticalAngles,
+    parallelAngles, parallelFromAngles, parallelFromPerpendiculars, parallelTransitive,
+    pointOnSegment, perpendicularAngles, perpendicularFromAngle,
+    perpendicularThroughParallel, pythagoras, rightTriangleFromAngle,
+    triangleAngleSum, verticalAngles,
 } from "./theorems";
 
 const THEOREMS = [
     intersections, pointOnSegment, betweennessLength, perpendicularAngles,
     verticalAngles, linearPairs, triangleAngleSum, equilateralTriangle,
-    rightTriangleFromAngle, pythagoras, perpendicularFromAngle,
+    parallelAngles, rightTriangleFromAngle, pythagoras, perpendicularFromAngle,
+    parallelFromAngles, perpendicularThroughParallel,
+    parallelTransitive, parallelFromPerpendiculars,
 ];
 const MAX_ITERATIONS = 200;
 const EPS = 0.000001;
@@ -21,7 +25,10 @@ const EPS = 0.000001;
 export function conditionHolds(problem: Problem, c: Condition): boolean {
     const known = (id: string) => problem.quantities.value(id);
     if (c.kind === "fact") {
-        return problem.facts.some(f => factsEqual(f, c.fact));
+        const goal = c.fact;
+        // Цель о направлении доказывается выводом про ту же прямую,
+        // даже если он записан про её кусок.
+        return problem.facts.some(f => factsEqual(f, goal) || sameDirectionFact(f, goal));
     }
     if (c.kind === "value") {
         const g = c.target;

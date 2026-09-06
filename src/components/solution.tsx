@@ -1,60 +1,63 @@
-import { formatFact, formatPremise, formatQuantity, getTheoremName } from "../engine/format";
+import { formatAnglePoints, formatConditions, formatNumber, formatSegmentName,
+         getTheoremName } from "../engine/format";
+import { conditionHolds } from "../engine/solve";
+import { solutionSteps } from "../engine/steps";
 import { Problem } from "../engine/problem";
 
 interface SolutionProps {
     problem: Problem;
 }
 
-interface Step {
-    theorem: string;
-    premises: string[];
-    result: string;
+// Итог задачи: найденное значение или отметка о доказанности.
+function answerOf(problem: Problem): string | null {
+    const goal = problem.goal;
+    if (goal === null) return null;
+    if (goal.kind === "length") {
+        const value = problem.quantities.value(problem.lengthId(goal.segment));
+        return value === null ? null : `${formatSegmentName(goal.segment)} = ${formatNumber(value)}`;
+    }
+    if (goal.kind === "angle") {
+        const value = problem.quantities.value(problem.angleIdOf(goal.angle));
+        return value === null ? null : `${formatAnglePoints(goal.angle)} = ${formatNumber(value)}°`;
+    }
+    if (!conditionHolds(problem, goal.condition)) return null;
+    return `${formatConditions(goal.condition) ?? "?"} — proved`;
 }
 
-// Примитивное построение цепочки шагов для решения задачи. Нужно будет переделать.
+// Пошаговая выкладка: номер, использованное свойство обычным шрифтом,
+// затем формулы крупно — от общей записи свойства до итога шага.
 export function Solution({ problem }: SolutionProps) {
-    const steps: Step[] = [];
-    for (const fact of problem.facts) {
-        if (fact.reason.kind !== "derived") continue;
-        const result = formatFact(fact);
-        if (result === null) continue;
-        steps.push({
-            theorem: fact.reason.theorem,
-            premises: fact.reason.premises
-                .map(premise => formatFact(premise))
-                .filter((s): s is string => s !== null),
-            result,
-        });
-    }
-    for (const assignment of problem.quantities.assignments) {
-        if (assignment.reason.kind !== "derived") continue;
-        steps.push({
-            theorem: assignment.reason.theorem,
-            premises: assignment.reason.premises
-                .map(premise => formatPremise(problem, premise))
-                .filter((s): s is string => s !== null),
-            result: formatQuantity(assignment.quantity),
-        });
+    const steps = solutionSteps(problem);
+    const answer = answerOf(problem);
+
+    if (steps.length === 0) {
+        return <div className="statement-empty">No derivation steps yet — press Solve.</div>;
     }
     return (
-        <div>
-            {steps.length === 0 && <div>No derivation steps yet — press Solve.</div>}
+        <div className="solution">
+            <h3 className="section-title">Solution</h3>
             {steps.map((step, index) => (
-                <div key={index}>
-                    <strong>Step {index + 1}: {getTheoremName(step.theorem)}</strong>
-                    {step.premises.length > 0 && (
-                        <>
-                            <div>From:</div>
-                            <ul>
-                                {step.premises.map((premise, i) => (
-                                    <li key={i}>{premise}</li>
-                                ))}
-                            </ul>
-                        </>
-                    )}
-                    <div>We get: {step.result}</div>
+                <div className="solution-step" key={index}>
+                    <div className="step-number">{index + 1}</div>
+                    <div className="step-body">
+                        <div className="step-claim">
+                            {step.source !== null && (
+                                <>For <span className="step-source">{step.source}</span>, according to </>
+                            )}
+                            <span className="step-theorem">{getTheoremName(step.theorem)}:</span>
+                        </div>
+                        {step.formulas.map((formula, i) => (
+                            <div className="step-formula" key={i}>{formula}</div>
+                        ))}
+                    </div>
                 </div>
             ))}
+            {answer !== null && (
+                <div className="solution-answer">
+                    <div className="answer-label">Answer</div>
+                    <div className="answer-value">{answer}</div>
+                </div>
+            )}
         </div>
     );
 }

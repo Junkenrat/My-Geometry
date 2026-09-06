@@ -40,6 +40,7 @@ function derivedReason(rel: Relation, usedIds: QuantityId[]): QReason {
     return {
         kind: "derived",
         theorem: rel.reason.theorem,
+        relation: rel,
         premises: [
             ...rel.reason.premises,
             ...usedIds.map(id => ({ kind: "quantity" as const, id })),

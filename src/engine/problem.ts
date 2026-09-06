@@ -1,7 +1,7 @@
 import type { Point, Line, Ray, Segment, Angle, Triangle, Circle } from "./types";
-import { pointName } from "./types";
+import { angleName, segmentName } from "./types";
 import type { Fact, GivenValue, Goal, Reason } from "./facts";
-import { factsEqual, factPoints } from "./facts";
+import { factsEqual, factPoints, sameDirectionFact } from "./facts";
 import type { Quantity, QuantityId } from "./quantities";
 import { QuantityStore } from "./quantities";
 import type { Relation } from "./relations";
@@ -30,11 +30,46 @@ export class Problem {
 
     // Все аргументы add/get через id точек
 
+    // Сторона угла — это направление из вершины, а не конкретная точка на нём.
+    // Если E и G лежат на одном луче из H, то ∠AHE и ∠AHG — один и тот же угол,
+    // и ключ у них обязан совпасть. Направление нормируем и округляем: точки,
+    // поставленные на прямую, дают геометрически одинаковый вектор, а вот
+    // побитово он может разойтись в последних разрядах.
+    private directionKey(vertex: Point, through: Point): string {
+        const dx = through.x - vertex.x, dy = through.y - vertex.y;
+        const len = Math.hypot(dx, dy);
+        if (len === 0) return "0:0";
+        const unit = (v: number) => Math.round((v / len) * 1e6) / 1e6;
+        return `${unit(dx)}:${unit(dy)}`;
+    }
+
+    // Ближайшая к вершине точка того же направления: ей и называем сторону,
+    // потому что ∠AHG читается естественнее, чем ∠AHE через дальнюю точку.
+    // На ключ выбор не влияет, так что более близкая точка, появившаяся позже,
+    // ничего не ломает.
+    private nearestOnArm(vertex: Point, through: Point): Point {
+        const dx = through.x - vertex.x, dy = through.y - vertex.y;
+        let best = through, bestDist = Math.hypot(dx, dy);
+        for (const p of this.points.values()) {
+            if (p === vertex || p === through) continue;
+            const px = p.x - vertex.x, py = p.y - vertex.y;
+            if (Math.abs(dx * py - dy * px) > EPS) continue; // не на той прямой
+            if (px * dx + py * dy <= 0) continue;            // противоположный луч
+            const dist = Math.hypot(px, py);
+            if (dist < bestDist) { bestDist = dist; best = p; }
+        }
+        return best;
+    }
+
     getAngleKey(vertex: string, thr1: string, thr2: string): string {
-        const keyA = `${vertex}>${thr1}`;
-        const keyB = `${vertex}>${thr2}`;
-        const sortedKeys: string[] = [keyA, keyB].sort();
-        return `${vertex}:${sortedKeys[0]}|${sortedKeys[1]}`;
+        const v = this.points.get(vertex);
+        const a = this.points.get(thr1), b = this.points.get(thr2);
+        if (v === undefined || a === undefined || b === undefined) {
+            const raw = [`${vertex}>${thr1}`, `${vertex}>${thr2}`].sort();
+            return `${vertex}:${raw[0]}|${raw[1]}`;
+        }
+        const dirs = [this.directionKey(v, a), this.directionKey(v, b)].sort();
+        return `${vertex}:${dirs[0]}|${dirs[1]}`;
     }
 
     getLine(p1: string, p2: string): Line | undefined {
@@ -68,24 +103,31 @@ export class Problem {
         this.nextPointNumber += 1;
         const newPoint: Point = { id, label: null, x, y };
         this.points.set(id, newPoint);
+        this.splitSegmentsAt(newPoint);
         return newPoint;
     }
 
-    removePoint(id: string): void {
-        const point = this.requirePoint(id);
-        const isReferenced =
-            Array.from(this.lines.values()).some(l => l.p1 === point || l.p2 === point)
-            || Array.from(this.rays.values()).some(r => r.start === point || r.through === point)
-            || Array.from(this.segments.values()).some(s => s.p1 === point || s.p2 === point)
-            || Array.from(this.triangles.values()).some(t => t.p1 === point || t.p2 === point || t.p3 === point)
-            || Array.from(this.circles.values()).some(c => c.center === point)
-            || this.facts.some(f =>
-                (f.kind === "between" && (f.point === point || f.from === point || f.to === point))
-                || (f.kind === "right_triangle" && f.rightAngleAt === point));
-        if (isReferenced) {
-            throw new Error(`Point "${id}" is referenced by other objects and cannot be removed.`);
+    // Лежит ли точка строго внутри отрезка, не совпадая с его концами.
+    private isInside(point: Point, seg: Segment): boolean {
+        if (point === seg.p1 || point === seg.p2) return false;
+        const dx = seg.p2.x - seg.p1.x, dy = seg.p2.y - seg.p1.y;
+        const px = point.x - seg.p1.x, py = point.y - seg.p1.y;
+        if (Math.abs(dx * py - dy * px) > EPS) return false; // не на прямой
+        const len2 = dx * dx + dy * dy;
+        if (len2 === 0) return false;
+        const t = (px * dx + py * dy) / len2;
+        return t > EPS && t < 1 - EPS;
+    }
+
+    // Точка на отрезке делит его надвое. Подотрезки существуют геометрически,
+    // поэтому создаём их сразу: иначе на угол при такой точке нельзя сослаться,
+    // пока решение не запущено (раньше их создавала теорема аддитивности).
+    private splitSegmentsAt(point: Point): void {
+        for (const seg of Array.from(this.segments.values())) {
+            if (!this.isInside(point, seg)) continue;
+            this.addSplitPart(seg.p1.id, point.id);
+            this.addSplitPart(point.id, seg.p2.id);
         }
-        this.points.delete(id);
     }
 
     renamePoint(id: string, label: string): string | null {
@@ -171,24 +213,43 @@ export class Problem {
         const newSegment: Segment = {
             p1: this.requirePoint(p1),
             p2: this.requirePoint(p2),
-            line: this.addLine(p1, p2)
+            line: this.addLine(p1, p2),
+            kind: "drawn"
         };
         this.segments.set(key, newSegment);
-        for (const thirdPoint of this.points.values()) {
-            if (thirdPoint.id !== p1 && thirdPoint.id !== p2) {
-                if (this.getSegment(thirdPoint.id, p1) !== undefined
-                && this.getSegment(thirdPoint.id, p2) !== undefined) {
-                    const area = (newSegment.p2.x - newSegment.p1.x) *
-                        (thirdPoint.y - newSegment.p1.y) -
-                        (newSegment.p2.y - newSegment.p1.y) *
-                        (thirdPoint.x - newSegment.p1.x);
-                    if (Math.abs(area) > EPS) {
-                        this.addTriangle(p1, p2, thirdPoint.id);
-                    }
-                }
-            }
+        this.detectTriangles(newSegment);
+        // Отрезок мог накрыть уже стоящие точки — делится так же, как при
+        // постановке новой точки.
+        for (const point of Array.from(this.points.values())) {
+            if (!this.isInside(point, newSegment)) continue;
+            this.addSplitPart(newSegment.p1.id, point.id);
+            this.addSplitPart(point.id, newSegment.p2.id);
         }
         return newSegment;
+    }
+
+    // Половинка отрезка: если такой отрезок уже построен пользователем,
+    // происхождение не понижаем — он не должен исчезнуть при переезде точки.
+    private addSplitPart(a: string, b: string): void {
+        if (this.getSegment(a, b) !== undefined) return;
+        this.addSegment(a, b).kind = "split";
+    }
+
+    // Третья точка, соединённая с обоими концами, замыкает треугольник —
+    // если только тройка не вырождена в прямую.
+    private detectTriangles(seg: Segment): void {
+        for (const third of Array.from(this.points.values())) {
+            if (third === seg.p1 || third === seg.p2) continue;
+            if (this.getSegment(third.id, seg.p1.id) === undefined) continue;
+            if (this.getSegment(third.id, seg.p2.id) === undefined) continue;
+            if (this.isCollinear(seg.p1, seg.p2, third)) continue;
+            this.addTriangle(seg.p1.id, seg.p2.id, third.id);
+        }
+    }
+
+    private isCollinear(a: Point, b: Point, c: Point): boolean {
+        const area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+        return Math.abs(area) <= EPS;
     }
 
     addAngle(vertex: string, thr1: string, thr2: string): Angle {
@@ -197,10 +258,11 @@ export class Problem {
         if (existing !== undefined) {
             return existing;
         }
+        const v = this.requirePoint(vertex);
         const newAngle: Angle = {
-            vertex: this.requirePoint(vertex),
-            ray1: this.addRay(vertex, thr1),
-            ray2: this.addRay(vertex, thr2)
+            vertex: v,
+            ray1: this.addRay(vertex, this.nearestOnArm(v, this.requirePoint(thr1)).id),
+            ray2: this.addRay(vertex, this.nearestOnArm(v, this.requirePoint(thr2)).id)
         };
         this.angles.set(key, newAngle);
         return newAngle;
@@ -253,7 +315,72 @@ export class Problem {
     movePoint(point: Point, x: number, y: number): void {
         point.x = x;
         point.y = y;
+        this.refreshGeometry();
         this.resetDerived();
+    }
+
+    // Проходит ли отрезок s через весь кусочек piece (совпадение тоже считается).
+    // Нужно, чтобы понять, какие отрезки перестают существовать, когда из линии
+    // вырезают её часть.
+    private covers(s: Segment, piece: Segment): boolean {
+        const dx = s.p2.x - s.p1.x, dy = s.p2.y - s.p1.y;
+        const len2 = dx * dx + dy * dy;
+        if (len2 === 0) return false;
+        const along = (p: Point): number | null => {
+            if (Math.abs(dx * (p.y - s.p1.y) - dy * (p.x - s.p1.x)) > EPS) return null;
+            return ((p.x - s.p1.x) * dx + (p.y - s.p1.y) * dy) / len2;
+        };
+        const t1 = along(piece.p1), t2 = along(piece.p2);
+        if (t1 === null || t2 === null) return false;
+        return Math.min(t1, t2) >= -EPS && Math.max(t1, t2) <= 1 + EPS;
+    }
+
+    // Половинка жива, пока её оправдывает исходный отрезок: у одного её конца
+    // есть отрезок, внутрь которого попадает другой конец. Сторона уже
+    // построенного треугольника тоже считается основанием — её удалять нельзя.
+    private isJustifiedPart(part: Segment): boolean {
+        for (const triangle of this.triangles.values()) {
+            const ids = [triangle.p1, triangle.p2, triangle.p3];
+            if (ids.includes(part.p1) && ids.includes(part.p2)) return true;
+        }
+        for (const seg of this.segments.values()) {
+            if (seg === part) continue;
+            if ((seg.p1 === part.p1 || seg.p2 === part.p1) && this.isInside(part.p2, seg)) return true;
+            if ((seg.p1 === part.p2 || seg.p2 === part.p2) && this.isInside(part.p1, seg)) return true;
+        }
+        return false;
+    }
+
+    // Что с чем соединено, переезд точки не меняет. Меняется выведенное из
+    // координат: попадания точек на отрезки и невырожденность треугольников.
+    // Это и пересобираем.
+    // Треугольник держится на трёх своих сторонах и на невырожденности.
+    private dropInvalidTriangles(): void {
+        for (const [key, t] of Array.from(this.triangles)) {
+            const sides: [Point, Point][] = [[t.p1, t.p2], [t.p2, t.p3], [t.p3, t.p1]];
+            const sideGone = sides.some(([a, b]) => this.getSegment(a.id, b.id) === undefined);
+            if (sideGone || this.isCollinear(t.p1, t.p2, t.p3)) this.triangles.delete(key);
+        }
+    }
+
+    private refreshGeometry(): void {
+        this.dropInvalidTriangles();
+        // Половинки без основания уходят. Одна может держаться на другой,
+        // поэтому повторяем, пока список не перестанет меняться.
+        let removed = true;
+        while (removed) {
+            removed = false;
+            for (const [key, seg] of Array.from(this.segments)) {
+                if (seg.kind !== "split" || this.isJustifiedPart(seg)) continue;
+                this.segments.delete(key);
+                removed = true;
+            }
+        }
+        // Вместе с половинками могли уйти стороны треугольников.
+        this.dropInvalidTriangles();
+        // Новые попадания точек на отрезки дают новые половинки.
+        for (const point of Array.from(this.points.values())) this.splitSegmentsAt(point);
+        for (const seg of Array.from(this.segments.values())) this.detectTriangles(seg);
     }
 
     // --- eraser -----------------------------------------------------------
@@ -275,15 +402,23 @@ export class Problem {
         ray.kind = "implicit";
     }
 
-    // Удаляет отрезок; треугольник, у которого он был стороной, перестаёт быть
-    // треугольником. Точки остаются.
+    // Стирает кусочек линии. Вместе с ним уходит всё, что через него проходит:
+    // иначе кусочек тут же восстановился бы как половинка родительского отрезка.
+    // Части линии по обе стороны от выреза остаются — и становятся
+    // самостоятельными отрезками, раз накрывавшего их целого больше нет.
     eraseSegment(seg: Segment): void {
-        const key = [seg.p1.id, seg.p2.id].sort().join("-");
-        this.segments.delete(key);
-        for (const [tkey, t] of this.triangles) {
-            const ids = [t.p1.id, t.p2.id, t.p3.id];
-            if (ids.includes(seg.p1.id) && ids.includes(seg.p2.id)) this.triangles.delete(tkey);
+        for (const [key, s] of Array.from(this.segments)) {
+            // Уходит и то, что проходит через кусочек (иначе он восстановится),
+            // и то, что лежит внутри него (стирается вся его длина).
+            if (this.covers(s, seg) || this.covers(seg, s)) this.segments.delete(key);
         }
+        const remaining = Array.from(this.segments.values());
+        for (const part of remaining) {
+            if (part.kind !== "split") continue;
+            if (remaining.some(other => other !== part && this.covers(other, part))) continue;
+            part.kind = "drawn"; // накрывать больше нечему — часть живёт сама по себе
+        }
+        this.refreshGeometry();
         this.resetDerived();
     }
 
@@ -300,11 +435,15 @@ export class Problem {
         this.facts = this.facts.filter(f => f.reason.kind !== "given" || !factPoints(f).includes(point));
         this.conditions = this.conditions.filter(c => !conditionPoints(c).includes(point));
         this.points.delete(point.id);
+        // Вместе с точкой ушли её отрезки — половинки, что на них держались,
+        // тоже могли потерять основание.
+        this.refreshGeometry();
         this.resetDerived();
     }
 
     addFact(fact: Fact): void {
-        if (this.facts.some(existing => factsEqual(existing, fact))) {
+        if (this.facts.some(existing => factsEqual(existing, fact)
+            || sameDirectionFact(existing, fact))) {
             return;
         }
         this.facts.push(fact);
@@ -341,12 +480,12 @@ export class Problem {
 
     lengthQuantity(seg: Segment): Quantity {
         return this.quantities.ensure(this.lengthId(seg),
-            () => `${pointName(seg.p1)}${pointName(seg.p2)}`);
+            () => segmentName(seg.p1, seg.p2));
     }
 
     angleQuantity(angle: Angle): Quantity {
         return this.quantities.ensure(this.angleId(angle),
-            () => `∠${pointName(angle.ray1.through)}${pointName(angle.vertex)}${pointName(angle.ray2.through)}`);
+            () => angleName(angle.vertex, angle.ray1.through, angle.ray2.through));
     }
 
     private applyGivenValue(given: GivenValue): void {

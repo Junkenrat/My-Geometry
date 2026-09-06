@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { attentionClass } from "./attention";
 
 interface NameDialogProps {
     // Название сообщения вроде "Name the first point" или "Name the second point".
@@ -12,9 +13,12 @@ interface NameDialogProps {
     onAuto: () => void;
     // Нужно переделать под onCancel!
     onClose: () => void;
+    // Счётчик отказов: пока имя не введено, остальные действия запрещены, и на
+    // каждую попытку окно мигает. Растёт на единицу с каждым отказом.
+    nudge: number;
 }
 
-export function NameDialog({ title, placeholder, onSubmit, onClose, onAuto}: NameDialogProps) {
+export function NameDialog({ title, placeholder, onSubmit, onClose, onAuto, nudge}: NameDialogProps) {
     const [value, setValue] = useState("");
     const [error, setError] = useState<string | null>(null);
 
@@ -37,7 +41,7 @@ export function NameDialog({ title, placeholder, onSubmit, onClose, onAuto}: Nam
     }
 
     return (
-        <div className="name-dialog">
+        <div className={`name-dialog ${attentionClass(nudge)}`}>
             <div className="hint-content">{title}</div>
             {error !== null && <div className="name-dialog-error">{error}</div>}
             <input

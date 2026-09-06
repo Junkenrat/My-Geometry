@@ -1,4 +1,5 @@
-import type { Segment, Angle, Triangle, Point } from "./types";
+import type { Segment, Angle, Triangle, Point, Carrier } from "./types";
+import { carrierPoints, sameCarrierLine } from "./types";
 import type { AnglePoints, Condition } from "./conditions";
 
 // Откуда взялся факт - либо задан по условию (given),
@@ -42,17 +43,19 @@ export interface AcuteFact {
     readonly reason: Reason;
 }
 
+// a и b — носители: отрезок, луч или прямая. Перпендикулярность и
+// параллельность — свойства направления, поэтому длина здесь ни при чём.
 export interface PerpendicularFact {
     readonly kind: "perpendicular";
-    readonly seg1: Segment;
-    readonly seg2: Segment;
+    readonly a: Carrier;
+    readonly b: Carrier;
     readonly reason: Reason;
 }
 
 export interface ParallelFact {
     readonly kind: "parallel";
-    readonly seg1: Segment;
-    readonly seg2: Segment;
+    readonly a: Carrier;
+    readonly b: Carrier;
     readonly reason: Reason;
 }
 
@@ -89,10 +92,21 @@ export function factPoints(fact: Fact): Point[] {
             return [fact.triangle.p1, fact.triangle.p2, fact.triangle.p3];
         case "perpendicular":
         case "parallel":
-            return [fact.seg1.p1, fact.seg1.p2, fact.seg2.p1, fact.seg2.p2];
+            return [...carrierPoints(fact.a), ...carrierPoints(fact.b)];
         case "between":
             return [fact.point, fact.from, fact.to];
     }
+}
+
+// Говорят ли два факта о направлении одно и то же. ⊥ и ∥ — свойства прямых,
+// поэтому "AK ∥ DL" про подотрезки и "AB ∥ CD" про целые отрезки — одно
+// утверждение, и держать в базе оба незачем.
+export function sameDirectionFact(x: Fact, y: Fact): boolean {
+    if (x.kind !== y.kind) return false;
+    if (x.kind !== "perpendicular" && x.kind !== "parallel") return false;
+    if (y.kind !== "perpendicular" && y.kind !== "parallel") return false;
+    return (sameCarrierLine(x.a, y.a) && sameCarrierLine(x.b, y.b))
+        || (sameCarrierLine(x.a, y.b) && sameCarrierLine(x.b, y.a));
 }
 
 // Сравнение фактов
@@ -100,10 +114,10 @@ export function factsEqual(a: Fact, b: Fact): boolean {
     if (a.kind !== b.kind) return false;
     if ((a.kind === "perpendicular" && b.kind === "perpendicular")
         || (a.kind === "parallel" && b.kind === "parallel")) {
-        if (a.seg1 === b.seg1 && a.seg2 === b.seg2) {
+        if (a.a === b.a && a.b === b.b) {
             return true;
         }
-        if (a.seg1 === b.seg2 && a.seg2 === b.seg1) {
+        if (a.a === b.b && a.b === b.a) {
             return true;
         }
     }

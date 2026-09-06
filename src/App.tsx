@@ -7,6 +7,7 @@ import { isSolved, solve } from "./engine/solve";
 import { assignLabels, ensureLabel, nextFreeLabel } from "./engine/naming";
 import { Tools } from "./components/tools";
 import { NameDialog } from "./components/nameDialog";
+import { attentionClass } from "./components/attention";
 import { Actions } from "./components/actions";
 import "./App.css";
 import { validate } from "./engine/validate";
@@ -19,9 +20,6 @@ const LINE_GRID_RADIUS = 8;
 // Насколько далеко носитель тянется вдоль своего направления.
 type Extent = "segment" | "ray" | "line";
 
-// Nearest to (qx, qy) intersection of the p1-p2 line with the grid lines.
-// Where the line passes through a true grid node both candidates coincide,
-// so nodes attract automatically.
 function snapToGridAlongLine(
   p1: Vec, p2: Vec, qx: number, qy: number, limit: Extent,
 ): { x: number; y: number } | null {
@@ -157,8 +155,6 @@ function findPointAt(x: number, y: number, hitRadius: number, problem: Problem, 
 }
 
 function findLineAt(x: number, y:number, hitRadius: number, problem: Problem, moving?: Point | null): {x: number, y: number, kind: "line"} | null {
-  // The winner remembers its carrier so the projection can then be snapped
-  // to the carrier's grid crossings.
   let best: { qx: number; qy: number; p1: Point; p2: Point; limit: Extent } | null = null;
   let minDist = hitRadius;
   for (const seg of problem.segments.values()) {
@@ -299,10 +295,20 @@ function findErasableAt(x: number, y: number, problem: Problem): EraseTarget | n
     t = Math.max(tMin, Math.min(tMax, t));
     return Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy));
   };
+  // Отрезок с точками внутри разбит на части, и все они лежат на курсоре
+  // одинаково близко. Целимся в самую короткую: стирать нужно кусочек между
+  // соседними точками, а не всю линию целиком.
+  const lengthOf = (s: Segment) => Math.hypot(s.p2.x - s.p1.x, s.p2.y - s.p1.y);
+  let bestSeg: Segment | null = null;
   for (const seg of problem.segments.values()) {
     const d = distTo(seg.p1, seg.p2, 0, 1);
-    if (d < bestDist) { bestDist = d; best = { kind: "segment", segment: seg }; }
+    if (d > bestDist + 1e-6) continue;
+    const closer = d < bestDist - 1e-6;
+    if (!closer && bestSeg !== null && lengthOf(seg) >= lengthOf(bestSeg)) continue;
+    bestDist = Math.min(bestDist, d);
+    bestSeg = seg;
   }
+  if (bestSeg !== null) best = { kind: "segment", segment: bestSeg };
   for (const c of problem.circles.values()) {
     const d = Math.abs(Math.hypot(x - c.center.x, y - c.center.y) - c.radius);
     if (d < bestDist) { bestDist = d; best = { kind: "circle", circle: c }; }
@@ -418,9 +424,6 @@ function App() {
   const [problem] = useState(() => new Problem());
   const [interaction, setInteraction] = useState<Interaction>({ mode: "idle" });
 
-  // Dev-only escape hatch: poke the engine from the browser console
-  // (window.__problem.addExplicitLine(...) etc.), then switch a tool
-  // to trigger a re-render.
   useEffect(() => {
     if (import.meta.env.DEV) {
       (window as { __problem?: Problem }).__problem = problem;
@@ -444,10 +447,23 @@ function App() {
   const [panning, setPanning] = useState(false);
   // Запрос подтверждения на стирание: показывается в плашке-подсказке.
   const [confirmClear, setConfirmClear] = useState(false);
+  // Пока открыт вопрос (подтверждение стирания или запрос имени), прочие
+  // действия запрещены. Каждый отказ увеличивает счётчик — окно мигает.
+  const [nudge, setNudge] = useState(0);
   // Точка захвата: где нажали мышь и каким был сдвиг в этот момент.
   const panFrom = useRef<{ mx: number; my: number; vx: number; vy: number } | null>(null);
 
   const tool = toolOf(interaction);
+  // Модальный вопрос ждёт ответа: подтверждение стирания либо диалог имени.
+  const awaitingAnswer = confirmClear
+    || interaction.mode === "naming" || interaction.mode === "naming_queue";
+
+  // Возвращает true, если действие нужно отклонить; попутно мигает окном.
+  function refusedWhileAwaiting(): boolean {
+    if (!awaitingAnswer) return false;
+    setNudge(n => n + 1);
+    return true;
+  }
 
   function pointNamingTask(point: Point, title: string): NamingTask {
     return {
@@ -469,6 +485,7 @@ function App() {
   }
 
   function handleToolChange(t: Tool) {
+    if (refusedWhileAwaiting()) return;
     discardPendingPoint();
     if (t === "point") {
       setInteraction({ mode: "placing_point" });
@@ -502,6 +519,7 @@ function App() {
   // Курсор таскает чертёж, move — точку под нажатием; у остальных инструментов
   // нажатие — это построение.
   function handleMouseDown(e: React.MouseEvent<SVGSVGElement>) {
+    if (refusedWhileAwaiting()) return;
     if (interaction.mode === "move") {
       const { x, y } = worldCoords(e);
       const grabbed = findPointAt(x, y, 12, problem);
@@ -546,6 +564,7 @@ function App() {
   }
 
   function handleMove(e: React.MouseEvent<SVGSVGElement>) {
+    if (awaitingAnswer) return;
     const from = panFrom.current;
     if (from !== null) {
       setView({ x: from.vx + (e.clientX - from.mx), y: from.vy + (e.clientY - from.my) });
@@ -581,8 +600,8 @@ function App() {
   }
 
   function handleClick(e: React.MouseEvent<SVGSVGElement>) {
-    // Пока висит вопрос о стирании, построение приостановлено.
-    if (confirmClear) return;
+    // Пока висит вопрос, построение приостановлено — окно мигает в ответ.
+    if (refusedWhileAwaiting()) return;
     const { x, y } = worldCoords(e);
     const snappedCoords = snapAt(x, y);
     const snappedX = snappedCoords.x;
@@ -716,7 +735,7 @@ function App() {
         const { p1, p2 } = interaction;
         // Три коллинеарные вершины дают вырожденный треугольник — отклоняем.
         if (collinear(p1, p2, p3)) {
-          if (existing === null) problem.removePoint(p3.id); // убираем только что созданную
+          if (existing === null) problem.erasePoint(p3); // убираем только что созданную
           setVersion(v => v + 1);
           return;
         }
@@ -755,7 +774,7 @@ function App() {
         const p3 = existing ?? problem.addPoint(snappedX, snappedY);
         // Первые три вершины не должны лежать на одной прямой.
         if (collinear(interaction.p1, interaction.p2, p3)) {
-          if (existing === null) problem.removePoint(p3.id);
+          if (existing === null) problem.erasePoint(p3);
           setVersion(v => v + 1);
           return;
         }
@@ -775,7 +794,7 @@ function App() {
         const degenerate = collinear(p2, p3, p4) || collinear(p3, p4, p1) || collinear(p4, p1, p2);
         const selfCrossing = segmentsCross(p1, p2, p3, p4) || segmentsCross(p2, p3, p4, p1);
         if (degenerate || selfCrossing) {
-          if (existing === null) problem.removePoint(p4.id);
+          if (existing === null) problem.erasePoint(p4);
           setVersion(v => v + 1);
           return;
         }
@@ -834,6 +853,7 @@ function App() {
 
   // Called on both confirm and skip
   function handleNamingClose() {
+    setNudge(0);
     switch (interaction.mode) {
       case "naming":
         setInteraction({ mode: "placing_point" });
@@ -858,14 +878,14 @@ function App() {
       (interaction.mode === "line_end" && interaction.created) ||
       (interaction.mode === "ray_end" && interaction.created)
     ) {
-      problem.removePoint(interaction.first.id);
+      problem.erasePoint(interaction.first);
     } else if (interaction.mode === "triangle_p2" || interaction.mode === "triangle_p3"
       || interaction.mode === "quad_p2" || interaction.mode === "quad_p3" || interaction.mode === "quad_p4") {
       // Вершины ещё не связаны отрезками (фигура создаётся на последнем клике),
       // поэтому они не «referenced» и удаляются свободно.
-      for (const p of interaction.created) problem.removePoint(p.id);
+      for (const p of interaction.created) problem.erasePoint(p);
     } else if (interaction.mode === "circle_through" && interaction.created) {
-      problem.removePoint(interaction.center.id);
+      problem.erasePoint(interaction.center);
     }
   }
 
@@ -873,18 +893,18 @@ function App() {
     if ((interaction.mode === "segment_end" && interaction.created) ||
     (interaction.mode === "line_end" && interaction.created) ||
     (interaction.mode === "ray_end" && interaction.created)) {
-      problem.removePoint(interaction.first.id);
+      problem.erasePoint(interaction.first);
       if (interaction.mode === "segment_end") setInteraction({ mode: "segment_start"});
       if (interaction.mode === "line_end") setInteraction({ mode: "line_start"});
       if (interaction.mode === "ray_end") setInteraction({ mode: "ray_start"});
     } else if (interaction.mode === "triangle_p2" || interaction.mode === "triangle_p3") {
-      for (const p of interaction.created) problem.removePoint(p.id);
+      for (const p of interaction.created) problem.erasePoint(p);
       setInteraction({ mode: "triangle_p1" });
     } else if (interaction.mode === "quad_p2" || interaction.mode === "quad_p3" || interaction.mode === "quad_p4") {
-      for (const p of interaction.created) problem.removePoint(p.id);
+      for (const p of interaction.created) problem.erasePoint(p);
       setInteraction({ mode: "quad_p1" });
     } else if (interaction.mode === "circle_through" && interaction.created) {
-      problem.removePoint(interaction.center.id);
+      problem.erasePoint(interaction.center);
       setInteraction({ mode: "circle_center" });
     } else {
       setInteraction({ mode: "idle" });
@@ -897,6 +917,7 @@ function App() {
   // Стирание необратимо (истории шагов пока нет), поэтому спрашиваем
   // подтверждение в той же плашке, что и остальные вопросы к пользователю.
   function handleClearRequest() {
+    if (refusedWhileAwaiting()) return;
     if (problem.points.size === 0 && problem.conditions.length === 0) return;
     setConfirmClear(true);
   }
@@ -904,6 +925,7 @@ function App() {
   function handleClearConfirmed() {
     problem.clear();
     setConfirmClear(false);
+    setNudge(0);
     setView({ x: 0, y: 0 });
     setInteraction({ mode: "idle" });
     setSnapped(null);
@@ -1015,7 +1037,7 @@ function App() {
         Tool={tool}
       />
       {confirmClear ? (
-        <div className="hint">
+        <div className={`hint ${attentionClass(nudge)}`}>
           <div className="hint-content">Are you sure you want to erase the whole drawing?</div>
           <div className="hint-actions">
             <button className="hint-btn-done" style={{marginTop: "10px"}} onClick={handleClearConfirmed}>
@@ -1045,6 +1067,7 @@ function App() {
           onSubmit={(value) => problem.renamePoint(interaction.point.id, value)}
           onClose={handleNamingClose}
           onAuto={() => ensureLabel(problem, interaction.point)}
+          nudge={nudge}
         />
       )}
       {interaction.mode === "naming_queue" && interaction.queue[0] !== undefined && (
@@ -1055,6 +1078,7 @@ function App() {
           onSubmit={interaction.queue[0].submit}
           onClose={handleNamingClose}
           onAuto={interaction.queue[0].auto}
+          nudge={nudge}
         />
       )}
       <Tools tool={tool} setTool={handleToolChange} />
